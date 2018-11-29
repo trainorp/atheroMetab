@@ -8,10 +8,21 @@ df1<-readxl::read_xlsx("targetedData_20181123.xlsx")
 metabKey<-readxl::read_xlsx("metabKey_20181123.xlsx")
 
 ############ Data processing ############
+# QC data:
 df1$samp<-gsub("Biorec_preDeFilippis0","QC",df1$samp)
 df1$samp<-gsub("Biorec_postDeFilippis0","QC",df1$samp)
 df1qc<-df1[grepl("QC",df1$samp),]
 df1qcL<-df1qc %>% gather(key="metabID",value="Concentration",-samp)
+
+# Blank data:
+df1$samp<-gsub("MtdBlank_preDeFilippis0","Blank",df1$samp)
+df1$samp<-gsub("MtdBlank_postDeFilippis0","Blank",df1$samp)
+
+# Phenotype data:
+df1$ptid<-gsub("Blank[[:digit:]]","",gsub("QC[[:digit:]]","",
+                                          str_split(df1$samp,"-",simplify=TRUE)[,1]))
+df1$timept<-str_split(df1$samp,"-",simplify=TRUE)[,2]
+phenoDF<-df1 %>% select(samp,ptid,timept)
 
 ############ QC samples throughout run ############
 qcMeans<-df1qcL %>% group_by(metabID) %>% summarize(meanConc=mean(Concentration))
