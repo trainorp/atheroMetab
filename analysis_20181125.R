@@ -33,7 +33,7 @@ df1$ptid<-gsub("Blank[[:digit:]]","",gsub("QC[[:digit:]]","",
                                           str_split(df1$samp,"-",simplify=TRUE)[,1]))
 df1$timept<-str_split(df1$samp,"-",simplify=TRUE)[,2]
 phenoDF<-df1 %>% select(samp,ptid,timept) %>% left_join(phenoDF)
-df1<-df1 %>% select(-samp)
+df1<-df1 %>% left_join(phenoDF)
 
 ############ QC samples throughout run ############
 qcMeans<-qcDFL %>% group_by(metabID) %>% summarize(meanConc=mean(Concentration))
@@ -53,5 +53,24 @@ ggplot(qcPlotDF,aes(x=samp,y=log(Concentration),group=Metabolite,color=Metabolit
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
 dev.off()
 
-############ Da ############
+############ Summary statistics ############
+summaryFun<-function(x){
+  m1<-c(mean=mean(x,na.rm=TRUE),sd=sd(x,na.rm=TRUE),min=min(x,na.rm=TRUE),
+        max=max(x,na.rm=TRUE),median=median(x,na.rm=TRUE),IQR=IQR(x,na.rm=TRUE))
+  # Need to change after imputation
+  return(m1)
+}
+summaryFun2<-function(metab){
+  tab1<-as.data.frame(do.call("rbind",by(c(df1[,metab]),df1[,"group"],summaryFun)))
+  tab1$metabID<-metab
+  tab1$group<-rownames(tab1)
+  return(tab1)
+}
+summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
+
+############ T0 Analysis ############
+ggplot(df1 %>% filter(ptid!="" & group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
+       aes(x=timept,y=log(m34),group=ptid,color=group)) + 
+  geom_line() + geom_point() + theme_bw()
+
 
