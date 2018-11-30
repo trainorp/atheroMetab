@@ -11,11 +11,17 @@ metabKey<-readxl::read_xlsx("metabKey_20181123.xlsx")
 
 # Import cohort phenotypes:
 oxPLDF<-read.csv("~/gdrive/Athro/oxPL6/wide_data_20150529.csv")
-phenoDF<-oxPLDF %>% select(ptid,group=migroup2,coarseGroup=group)
+phenoDF<-oxPLDF %>% select(ptid,group=migroup2,coarseGroup=group,oldMIGroup=migroup)
 phenoDF$group[is.na(phenoDF$group)]<-"sCAD"
 phenoDF$group[phenoDF$group=="Type 1"]<-"Thrombotic MI"
 phenoDF$group[phenoDF$group=="Type 2"]<-"Non-Thrombotic MI"
 phenoDF$ptid<-as.character(phenoDF$ptid)
+
+phenoDF$oldGroup<-phenoDF$group
+for(i in 1:nrow(phenoDF)){
+  if(!is.na(phenoDF$oldMIGroup[i]) & phenoDF$group[i]=="Thrombotic MI") phenoDF$oldGroup[i]<-NA
+  if(phenoDF$group[i]=="Indeterminate") phenoDF$oldGroup[i]<-NA
+}
 
 ############ Data processing ############
 # QC data:
@@ -69,8 +75,16 @@ summaryFun2<-function(metab){
 summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
 
 ############ T0 Analysis ############
-ggplot(df1 %>% filter(ptid!="" & group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
+ggplot(df1 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
        aes(x=timept,y=log(m34),group=ptid,color=group)) + 
   geom_line() + geom_point() + theme_bw()
 
+df2<-df1 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
+form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
+df2$group<-factor(df2$group)
+randomForest::randomForest(form1,data=df2 %>% filter(timept=="T0"),na.action=na.omit)
 
+df3<-df1 %>% filter(oldGroup %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
+form2<-as.formula(paste0("oldGroup~",paste(metabKey$metabID,collapse="+")))
+df3$oldGroup<-factor(df3$oldGroup)
+randomForest::randomForest(form2,data=df3 %>% filter(timept=="T0"),na.action=na.omit)
