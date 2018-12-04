@@ -6,16 +6,16 @@ library(tidyverse)
 setwd("~/gdrive/AthroMetab/WCMC")
 
 # Import WCMC data:
-df1<-readxl::read_xlsx("targetedData_20181123.xlsx")
+df1<-readxl::read_xlsx("targetedData_20181203.xlsx")
 metabKey<-readxl::read_xlsx("metabKey_20181123.xlsx")
 
 # Import cohort phenotypes:
 oxPLDF<-read.csv("~/gdrive/Athro/oxPL6/wide_data_20150529.csv")
+oxPLDF$ptid<-as.character(oxPLDF$ptid)
 phenoDF<-oxPLDF %>% select(ptid,group=migroup2,coarseGroup=group,oldMIGroup=migroup)
 phenoDF$group[is.na(phenoDF$group)]<-"sCAD"
 phenoDF$group[phenoDF$group=="Type 1"]<-"Thrombotic MI"
 phenoDF$group[phenoDF$group=="Type 2"]<-"Non-Thrombotic MI"
-phenoDF$ptid<-as.character(phenoDF$ptid)
 
 phenoDF$oldGroup<-phenoDF$group
 for(i in 1:nrow(phenoDF)){
@@ -40,6 +40,18 @@ df1$ptid<-gsub("Blank[[:digit:]]","",gsub("QC[[:digit:]]","",
 df1$timept<-str_split(df1$samp,"-",simplify=TRUE)[,2]
 phenoDF<-df1 %>% select(samp,ptid,timept) %>% left_join(phenoDF)
 df1<-df1 %>% left_join(phenoDF)
+
+# Imputation and normalization / scaling:
+which(is.na(df1[,names(df1) %in% metabKey$metabID]),arr.ind=TRUE)
+
+impFun<-function(x){
+  x2<-x[x>0]
+  x[x<=0]<-min(x2)/2
+  return(x)
+}
+df2<-df1
+df2[,names(df2) %in% metabKey$metabID]<-apply(df2[,names(df2) %in% metabKey$metabID],2,impFun)
+df2[,names(df2) %in% metabKey$metabID]<-log2(df2[,names(df2) %in% metabKey$metabID])
 
 ############ QC samples throughout run ############
 qcMeans<-qcDFL %>% group_by(metabID) %>% summarize(meanConc=mean(Concentration))
@@ -75,16 +87,13 @@ summaryFun2<-function(metab){
 summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
 
 ############ T0 Analysis ############
-ggplot(df1 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
+ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
        aes(x=timept,y=log(m34),group=ptid,color=group)) + 
   geom_line() + geom_point() + theme_bw()
 
-df2<-df1 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
-form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
-df2$group<-factor(df2$group)
-randomForest::randomForest(form1,data=df2 %>% filter(timept=="T0"),na.action=na.omit)
+df2b<-df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
+df2b$group<-factor(df2b$group)
+df2b<-oxPLDF %>% select(ptid,tropT0) %>% full_join(df2b)
+form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+"),"+tropT0"))
+randomForest::randomForest(form1,data=df2b %>% filter(timept=="T0"))
 
-df3<-df1 %>% filter(oldGroup %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
-form2<-as.formula(paste0("oldGroup~",paste(metabKey$metabID,collapse="+")))
-df3$oldGroup<-factor(df3$oldGroup)
-randomForest::randomForest(form2,data=df3 %>% filter(timept=="T0"),na.action=na.omit)
