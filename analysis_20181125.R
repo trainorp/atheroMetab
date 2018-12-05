@@ -86,14 +86,27 @@ summaryFun2<-function(metab){
 }
 summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
 
+############ BEST ############
+priors<-list(muM=0,muSD=2)
+na.omit(df2$m1[df1$group=="Thrombotic MI"])
+BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
+                    na.omit(df2$m1[df1$group=="Non-Thrombotic MI"]),
+                    priors=priors, parallel=FALSE)
+
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
        aes(x=timept,y=log(m34),group=ptid,color=group)) + 
   geom_line() + geom_point() + theme_bw()
 
+# Random Forests
 df2b<-df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
 df2b$group<-factor(df2b$group)
 df2b<-oxPLDF %>% select(ptid,tropT0) %>% full_join(df2b)
+form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
 form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+"),"+tropT0"))
-randomForest::randomForest(form1,data=df2b %>% filter(timept=="T0"))
+randomForest::randomForest(form0,data=df2b %>% filter(timept=="T0"),ntree=10000,
+                           strata=df2b$group,sampsize=15)
+randomForest::randomForest(form0,data=df2b %>% filter(timept=="T0"),ntree=10000)
+randomForest::randomForest(form1,data=df2b %>% filter(timept=="T0"),ntree=10000,
+                           strata=df2b$group,sampsize=11)
 
