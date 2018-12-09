@@ -89,9 +89,15 @@ summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
 na.omit(df2$m1[df1$group=="Thrombotic MI"])
-BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
+bestM1<-BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
                     na.omit(df2$m1[df1$group=="Non-Thrombotic MI"]),
-                    priors=priors, parallel=FALSE)
+                    priors=NULL, parallel=FALSE)
+
+# BANOVA
+idk<-as.data.frame(df2 %>% filter(!is.na(group)) %>% select(m1,group,ptid))
+idk$group<-factor(idk$group)
+idk$ptid<-factor(idk$ptid)
+BANOVA::BANOVA.Normal(m1~1,~group,data=idk,id=idk$ptid)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
