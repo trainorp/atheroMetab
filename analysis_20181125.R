@@ -127,12 +127,14 @@ rJagsModel<-"model{
   # Likelihood:
   for(i in 1:n){
     Y[i]~dnorm(mu[i],invVar)
-    mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*ThrombMI[i]
+    mu[i]<-beta[2]*Baseline[i]+beta[3]*ThrombMI[i]+beta[4]*NonThrombMI[i]+
+      beta[5]*Indeterminate[i]
+    #mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*ThrombMI[i]
   }
   
   # Prior for beta:
-  beta[1]~dnorm(0,0.0001)
-  for(j in 2:3){
+  # beta[1]~dnorm(0,0.0001)
+  for(j in 2:5){
     beta[j]~dnorm(0,0.0001)
   }
   
@@ -144,7 +146,8 @@ df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
 df2DfromBTemp<-df2DfromB %>% filter(metabID=="m1" & !is.na(TFU) & !is.na(T0))
 model<-rjags::jags.model(textConnection(rJagsModel),
         data=list(Y=df2DfromBTemp$T0,Baseline=df2DfromBTemp$TFU,
-        ThrombMI=df2DfromBTemp$`Thrombotic MI`,n=nrow(df2DfromBTemp)))
+        ThrombMI=df2DfromBTemp$`Thrombotic MI`,NonThrombMI=df2DfromBTemp$`Non-Thrombotic MI`,
+        Indeterminate=df2DfromBTemp$Indeterminate,n=nrow(df2DfromBTemp)))
 
 update(model,10000); # Burnin for 10000 samples
 samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
