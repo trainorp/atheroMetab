@@ -118,6 +118,11 @@ summaryDF<-summaryDF %>% arrange(metabID,group)
 write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
 
 ############ Change from baseline linear model ############
+# Prepare data:
+df2DfromB<-df2b %>% select(-samp,-coarseGroup,-oldMIGroup,-oldGroup) %>% 
+  gather(key="metabID",value="value",-(ptid:group))
+df2DfromB<-df2DfromB %>% spread(key=timept,value=value)
+
 rJagsModel<-"model{
   # Likelihood:
   for(i in 1:n){
@@ -126,7 +131,7 @@ rJagsModel<-"model{
   }
   
   # Prior for beta:
-  beta[1]~dnorm(2794,0.0001)
+  beta[1]~dnorm(0,0.0001)
   for(j in 2:3){
     beta[j]~dnorm(0,0.0001)
   }
@@ -135,11 +140,11 @@ rJagsModel<-"model{
   invVar~dgamma(0.01,0.01)
   sigma<-1/sqrt(invVar)
 }"
-dc<-psych::dummy.code(df1b$group)
-dc<-dc[,4]
-
+df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
+df2DfromBTemp<-df2DfromB %>% filter(metabID=="m1" & !is.na(TFU) & !is.na(T0))
 model<-rjags::jags.model(textConnection(rJagsModel),
-                         data=list(Y=df1b$m1,ThrombMI=dc,n=nrow(df1b)))
+        data=list(Y=df2DfromBTemp$T0,Baseline=df2DfromBTemp$TFU,
+        ThrombMI=df2DfromBTemp$`Thrombotic MI`,n=nrow(df2DfromBTemp)))
 
 update(model,10000); # Burnin for 10000 samples
 samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
