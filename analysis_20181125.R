@@ -72,26 +72,70 @@ ggplot(qcPlotDF,aes(x=samp,y=log(Concentration),group=Metabolite,color=Metabolit
 dev.off()
 
 ############ Summary statistics ############
-summaryFun<-function(x){
-  m1<-c(mean=mean(x,na.rm=TRUE),sd=sd(x,na.rm=TRUE),min=min(x,na.rm=TRUE),
-        max=max(x,na.rm=TRUE),median=median(x,na.rm=TRUE),IQR=IQR(x,na.rm=TRUE))
-  # Need to change after imputation
-  return(m1)
-}
 summaryFun2<-function(metab){
-  tab1<-as.data.frame(do.call("rbind",by(c(df1[,metab]),df1[,"group"],summaryFun)))
+  tab1<-df1 %>% filter(!is.na(group)) %>% select(group,timept,x=metab) %>% 
+    group_by(group,timept) %>% summarize(mean=mean(x,na.rm=TRUE),sd=sd(x,na.rm=TRUE),
+      min=min(x,na.rm=TRUE),max=max(x,na.rm=TRUE),median=median(x,na.rm=TRUE),
+      IQR=IQR(x,na.rm=TRUE))
   tab1$metabID<-metab
-  tab1$group<-rownames(tab1)
   return(tab1)
 }
-summaryDF<-do.call("rbind",lapply(metabKey$metabID,summaryFun2))
+summaryDF<-do.call("rbind",lapply(metabKey$metabID,function(metab) summaryFun2(metab)))
+
+# Separate summaries by timepoint: 
+summaryDFT0<-summaryDF %>% filter(timept=="T0") %>% select(-timept)
+summaryDFTFU<-summaryDF %>% filter(timept=="TFU") %>% select(-timept)
+names(summaryDFT0)[!names(summaryDFT0) %in% c("group","metabID")]<-
+  paste(names(summaryDFT0)[!names(summaryDFT0) %in% c("group","metabID")],"T0",sep="_")
+names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group","metabID")]<-
+  paste(names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group","metabID")],"TFU",sep="_")
+summaryDF<-summaryDFT0 %>% left_join(summaryDFTFU)
+rm(summaryDFT0,summaryDFTFU)
+
+# Make pretty:
+summaryDF$meanSD_T0<-paste0(format(summaryDF$mean_T0,digits=2,nsmall=2,trim=TRUE),
+                            "+/-",format(summaryDF$sd_T0,digits=2,nsmall=2,trim=TRUE))
+summaryDF$medianIQR_T0<-paste0(format(summaryDF$median_T0,digits=2,nsmall=2,trim=TRUE),
+                               "+/-",format(summaryDF$IQR_T0,digits=2,nsmall=2,trim=TRUE),
+                               " [",format(summaryDF$min_T0,digits=2,nsmall=2,trim=TRUE),
+                               ", ",format(summaryDF$max_T0,digits=2,nsmall=2,trim=TRUE),"]")
+summaryDF$meanSD_TFU<-paste0(format(summaryDF$mean_TFU,digits=2,nsmall=2,trim=TRUE),
+                            "+/-",format(summaryDF$sd_TFU,digits=2,nsmall=2,trim=TRUE))
+summaryDF$medianIQR_TFU<-paste0(format(summaryDF$median_TFU,digits=2,nsmall=2,trim=TRUE),
+                               "+/-",format(summaryDF$IQR_TFU,digits=2,nsmall=2,trim=TRUE),
+                               " [",format(summaryDF$min_TFU,digits=2,nsmall=2,trim=TRUE),
+                               ", ",format(summaryDF$max_TFU,digits=2,nsmall=2,trim=TRUE),"]")
+summaryDF<-summaryDF %>% select(metabID,group,meanSD_T0,meanSD_TFU,medianIQR_T0,medianIQR_TFU)
+summaryDF<-metabKey %>% select(metabID,Metabolite) %>% left_join(summaryDF)
+summaryDF$group<-factor(summaryDF$group,levels=c("sCAD","Non-Thrombotic MI",
+                      "Indeterminate","Thrombotic MI"))
+summaryDF$metabID<-factor(summaryDF$metabID,levels=metabKey$metabID)
+summaryDF<-summaryDF %>% arrange(metabID,group)
 
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
 na.omit(df2$m1[df1$group=="Thrombotic MI"])
-BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
+bestM1<-BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
                     na.omit(df2$m1[df1$group=="Non-Thrombotic MI"]),
-                    priors=priors, parallel=FALSE)
+                    priors=NULL, parallel=FALSE)
+
+# BANOVA
+coefs2<-list()
+for(var1 in metabKey$metabID){
+  df2Temp<-as.data.frame(df2[!(is.na(df2$group)),
+                             names(df2) %in% c(var1,"group","ptid")])
+  df2Temp$group<-factor(df2Temp$group,
+    levels=c("Thrombotic MI","sCAD","Non-Thrombotic MI","Indeterminate"))
+  df2$ptid<-factor(df2$ptid)
+  form1<-as.formula(paste0(var1,"~1"))
+  banova1<-BANOVA::BANOVA.Normal(form1,~group,data=df2Temp,id=df2Temp$ptid)
+  coefs1<-banova1$coef.tables$coeff_table
+  coefs1$var<-var1
+  coefs2[[var1]]<-coefs1
+}
+coefs2<-do.call("rbind",coefs2)
+coefs2$group<-str_split(rownames(coefs2),"  :  ",simplify=TRUE)[,2]
+rownames(coefs2)<-NULL
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
