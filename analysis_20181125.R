@@ -6,8 +6,8 @@ library(tidyverse)
 setwd("~/gdrive/AthroMetab/WCMC")
 
 # Import WCMC data:
-df1<-readxl::read_xlsx("targetedData_20181203.xlsx")
-metabKey<-readxl::read_xlsx("metabKey_20181123.xlsx")
+df1<-readxl::read_xlsx("Data/targetedData_20181203.xlsx")
+metabKey<-readxl::read_xlsx("Data/metabKey_20181123.xlsx")
 
 # Import cohort phenotypes:
 oxPLDF<-read.csv("~/gdrive/Athro/oxPL6/wide_data_20150529.csv")
@@ -53,6 +53,10 @@ df2<-df1
 df2[,names(df2) %in% metabKey$metabID]<-apply(df2[,names(df2) %in% metabKey$metabID],2,impFun)
 df2[,names(df2) %in% metabKey$metabID]<-log2(df2[,names(df2) %in% metabKey$metabID])
 
+# With QC and blanks removed:
+df1b<-df1 %>% filter(!is.na(group))
+df2b<-df2 %>% filter(!is.na(group))
+
 ############ QC samples throughout run ############
 qcMeans<-qcDFL %>% group_by(metabID) %>% summarize(meanConc=mean(Concentration))
 qcMeansECDF<-ecdf(qcMeans$meanConc)
@@ -66,14 +70,14 @@ qcPlotDF<-qcPlotDF %>% arrange(metabID)
 qcPlotDF$Metabolite<-metabKey$Metabolite[match(qcPlotDF$metabID,metabKey$metabID)]
 qcPlotDF$Metabolite<-factor(qcPlotDF$Metabolite,levels=unique(qcPlotDF$Metabolite))
 
-png(file="qcPlot1.png",height=4,width=7,units="in",res=300)
+png(file="Plots/qcPlot1.png",height=4,width=7,units="in",res=300)
 ggplot(qcPlotDF,aes(x=samp,y=log(Concentration),group=Metabolite,color=Metabolite)) + 
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
 dev.off()
 
 ############ Summary statistics ############
 summaryFun2<-function(metab){
-  tab1<-df1 %>% filter(!is.na(group)) %>% select(group,timept,x=metab) %>% 
+  tab1<-df1b %>% select(group,timept,x=metab) %>% 
     group_by(group,timept) %>% summarize(mean=mean(x,na.rm=TRUE),sd=sd(x,na.rm=TRUE),
       min=min(x,na.rm=TRUE),max=max(x,na.rm=TRUE),median=median(x,na.rm=TRUE),
       IQR=IQR(x,na.rm=TRUE))
@@ -111,6 +115,41 @@ summaryDF$group<-factor(summaryDF$group,levels=c("sCAD","Non-Thrombotic MI",
                       "Indeterminate","Thrombotic MI"))
 summaryDF$metabID<-factor(summaryDF$metabID,levels=metabKey$metabID)
 summaryDF<-summaryDF %>% arrange(metabID,group)
+write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
+
+############ Change from baseline linear model ############
+# Prepare data:
+df2DfromB<-df2b %>% select(-samp,-coarseGroup,-oldMIGroup,-oldGroup) %>% 
+  gather(key="metabID",value="value",-(ptid:group))
+df2DfromB<-df2DfromB %>% spread(key=timept,value=value)
+
+rJagsModel<-"model{
+  # Likelihood:
+  for(i in 1:n){
+    Y[i]~dnorm(mu[i],invVar)
+    mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*ThrombMI[i]
+  }
+  
+  # Prior for beta:
+  beta[1]~dnorm(0,0.0001)
+  for(j in 2:3){
+    beta[j]~dnorm(0,0.0001)
+  }
+  
+  # Prior for the variance:
+  invVar~dgamma(0.01,0.01)
+  sigma<-1/sqrt(invVar)
+}"
+df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
+df2DfromBTemp<-df2DfromB %>% filter(metabID=="m1" & !is.na(TFU) & !is.na(T0))
+model<-rjags::jags.model(textConnection(rJagsModel),
+        data=list(Y=df2DfromBTemp$T0,Baseline=df2DfromBTemp$TFU,
+        ThrombMI=df2DfromBTemp$`Thrombotic MI`,n=nrow(df2DfromBTemp)))
+
+update(model,10000); # Burnin for 10000 samples
+samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
+
+summary(samp)
 
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
@@ -143,14 +182,14 @@ ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
   geom_line() + geom_point() + theme_bw()
 
 # Random Forests
-df2b<-df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
-df2b$group<-factor(df2b$group)
-df2b<-oxPLDF %>% select(ptid,tropT0) %>% full_join(df2b)
+df2c<-df2b %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
+df2c$group<-factor(df2c$group)
+df2c<-oxPLDF %>% select(ptid,tropT0) %>% full_join(df2c)
 form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
 form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+"),"+tropT0"))
-randomForest::randomForest(form0,data=df2b %>% filter(timept=="T0"),ntree=10000,
-                           strata=df2b$group,sampsize=15)
-randomForest::randomForest(form0,data=df2b %>% filter(timept=="T0"),ntree=10000)
-randomForest::randomForest(form1,data=df2b %>% filter(timept=="T0"),ntree=10000,
-                           strata=df2b$group,sampsize=11)
+randomForest::randomForest(form0,data=df2c %>% filter(timept=="T0"),ntree=10000,
+                           strata=df2c$group,sampsize=15)
+randomForest::randomForest(form0,data=df2c %>% filter(timept=="T0"),ntree=10000)
+randomForest::randomForest(form1,data=df2c %>% filter(timept=="T0"),ntree=10000,
+                           strata=df2c$group,sampsize=11)
 
