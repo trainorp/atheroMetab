@@ -163,7 +163,17 @@ for(metab in metabKey$metabID){
                     T1vsT2=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[2]"]))
   samp3[[metab]]<-samp2
 }
+samp3<-do.call("rbind",samp3)
+rownames(samp3)<-NULL
 
+# Summarize:
+ciFun<-function(x){
+  quants<-quantile(x,probs=c(.025,.975))
+  data.frame(mean=mean(x),median=median(x),lq=as.numeric(quants[1]),
+             uq=as.numeric(quants[2]))
+}
+ciFun(samp3$T2[samp3$metab=="m1"])
+samp3 %>% group_by(metab) %>% do(ciFun(.$T2))
 
 df2DfromB$group<-factor(df2DfromB$group,levels=c("sCAD","Non-Thrombotic MI",
                                                  "Indeterminate","Thrombotic MI"))
