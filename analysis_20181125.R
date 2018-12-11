@@ -129,7 +129,6 @@ rJagsModel<-"model{
     Y[i]~dnorm(mu[i],invVar)
     mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*NonThrombMI[i]+beta[4]*Indeterminate[i]+
       beta[5]*ThrombMI[i]
-    #mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*ThrombMI[i]
   }
   
   # Prior for beta:
@@ -151,8 +150,8 @@ model<-rjags::jags.model(textConnection(rJagsModel),
 
 update(model,10000); # Burnin for 10000 samples
 samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
-
-summary(samp)
+samp2<-data.frame(T1vssCAD=samp[[1]][,"beta[5]"],
+                  T1vsT2=samp[[1]][,"beta[5]"]-samp[[1]][,"beta[3]"])
 
 df2DfromB$group<-factor(df2DfromB$group,levels=c("sCAD","Non-Thrombotic MI",
                                                  "Indeterminate","Thrombotic MI"))
