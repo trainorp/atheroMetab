@@ -117,23 +117,25 @@ summaryDF$metabID<-factor(summaryDF$metabID,levels=metabKey$metabID)
 summaryDF<-summaryDF %>% arrange(metabID,group)
 write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
 
-############ Change from baseline linear model ############
+############ Change score linear model ############
 # Prepare data:
 df2DfromB<-df2b %>% select(-samp,-coarseGroup,-oldMIGroup,-oldGroup) %>% 
   gather(key="metabID",value="value",-(ptid:group))
 df2DfromB<-df2DfromB %>% spread(key=timept,value=value)
+df2DfromB$d<-df2DfromB$T0-df2DfromB$TFU
+df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
 
+# JAGS model:
 rJagsModel<-"model{
   # Likelihood:
   for(i in 1:n){
     Y[i]~dnorm(mu[i],invVar)
-    mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*NonThrombMI[i]+beta[4]*Indeterminate[i]+
-      beta[5]*ThrombMI[i]
+    mu[i]<-beta[1]+beta[2]*NonThrombMI[i]+beta[3]*Indeterminate[i]+
+      beta[4]*ThrombMI[i]
   }
   
   # Prior for beta:
-  beta[1]~dnorm(0,0.0001)
-  for(j in 2:5){
+  for(j in 1:4){
     beta[j]~dnorm(0,0.0001)
   }
   
@@ -141,21 +143,31 @@ rJagsModel<-"model{
   invVar~dgamma(0.01,0.01)
   sigma<-1/sqrt(invVar)
 }"
-df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
-df2DfromBTemp<-df2DfromB %>% filter(metabID=="m1" & !is.na(TFU) & !is.na(T0))
-model<-rjags::jags.model(textConnection(rJagsModel),
-        data=list(Y=df2DfromBTemp$T0,Baseline=df2DfromBTemp$TFU,
-        ThrombMI=df2DfromBTemp$`Thrombotic MI`,NonThrombMI=df2DfromBTemp$`Non-Thrombotic MI`,
-        Indeterminate=df2DfromBTemp$Indeterminate,n=nrow(df2DfromBTemp)))
 
-update(model,10000); # Burnin for 10000 samples
-samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
-samp2<-data.frame(T1vssCAD=samp[[1]][,"beta[5]"],
-                  T1vsT2=samp[[1]][,"beta[5]"]-samp[[1]][,"beta[3]"])
+# Run the sampler for each metabolite
+samp3<-list()
+for(metab in metabKey$metabID){
+  df2DfromBTemp<-df2DfromB %>% filter(metabID==metab & !is.na(TFU) & !is.na(T0))
+  model<-rjags::jags.model(textConnection(rJagsModel),
+                           data=list(Y=df2DfromBTemp$d,ThrombMI=df2DfromBTemp$`Thrombotic MI`,
+                                     NonThrombMI=df2DfromBTemp$`Non-Thrombotic MI`,
+                                     Indeterminate=df2DfromBTemp$Indeterminate,n=nrow(df2DfromBTemp)))
+  
+  update(model,10000); # Burnin for 10000 samples
+  samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
+  samp2<-data.frame(metab=metab,
+                    T2=as.numeric(samp[[1]][,"beta[2]"]+samp[[1]][,"beta[1]"]),
+                    Ind=as.numeric(samp[[1]][,"beta[3]"]+samp[[1]][,"beta[1]"]),
+                    T1=as.numeric(samp[[1]][,"beta[4]"]+samp[[1]][,"beta[1]"]),
+                    T1vssCAD=as.numeric(samp[[1]][,"beta[4]"]),
+                    T1vsT2=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[2]"]))
+  samp3[[metab]]<-samp2
+}
+
 
 df2DfromB$group<-factor(df2DfromB$group,levels=c("sCAD","Non-Thrombotic MI",
                                                  "Indeterminate","Thrombotic MI"))
-lm1<-lm(T0~TFU+group,data=df2DfromB %>% filter(metabID=="m1"))
+lm1<-lm(d~group,data=df2DfromB %>% filter(metabID=="m1"))
 
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
