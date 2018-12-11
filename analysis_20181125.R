@@ -127,13 +127,13 @@ rJagsModel<-"model{
   # Likelihood:
   for(i in 1:n){
     Y[i]~dnorm(mu[i],invVar)
-    mu[i]<-beta[2]*Baseline[i]+beta[3]*ThrombMI[i]+beta[4]*NonThrombMI[i]+
-      beta[5]*Indeterminate[i]
+    mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*NonThrombMI[i]+beta[4]*Indeterminate[i]+
+      beta[5]*ThrombMI[i]
     #mu[i]<-beta[1]+beta[2]*Baseline[i]+beta[3]*ThrombMI[i]
   }
   
   # Prior for beta:
-  # beta[1]~dnorm(0,0.0001)
+  beta[1]~dnorm(0,0.0001)
   for(j in 2:5){
     beta[j]~dnorm(0,0.0001)
   }
@@ -154,6 +154,10 @@ samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
 
 summary(samp)
 
+df2DfromB$group<-factor(df2DfromB$group,levels=c("sCAD","Non-Thrombotic MI",
+                                                 "Indeterminate","Thrombotic MI"))
+lm1<-lm(T0~TFU+group,data=df2DfromB %>% filter(metabID=="m1"))
+
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
 na.omit(df2$m1[df1$group=="Thrombotic MI"])
@@ -167,7 +171,8 @@ for(var1 in metabKey$metabID){
   df2Temp<-as.data.frame(df2[!(is.na(df2$group)),
                              names(df2) %in% c(var1,"group","ptid")])
   df2Temp$group<-factor(df2Temp$group,
-    levels=c("Thrombotic MI","sCAD","Non-Thrombotic MI","Indeterminate"))
+    levels=c("sCAD","Non-Thrombotic MI",
+             "Indeterminate","Thrombotic MI"))
   df2$ptid<-factor(df2$ptid)
   form1<-as.formula(paste0(var1,"~1"))
   banova1<-BANOVA::BANOVA.Normal(form1,~group,data=df2Temp,id=df2Temp$ptid)
