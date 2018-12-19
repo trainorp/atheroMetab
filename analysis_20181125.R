@@ -179,7 +179,7 @@ ciFun<-function(x){
 }
 ptm<-proc.time()
 samp4Sum<-samp4 %>% group_by(metab,effect) %>% do(ciFun(.$value))
-ptm-proc.time()
+proc.time()-ptm
 
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
