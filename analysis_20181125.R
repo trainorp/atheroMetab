@@ -70,10 +70,10 @@ qcPlotDF<-qcPlotDF %>% arrange(metabID)
 qcPlotDF$Metabolite<-metabKey$Metabolite[match(qcPlotDF$metabID,metabKey$metabID)]
 qcPlotDF$Metabolite<-factor(qcPlotDF$Metabolite,levels=unique(qcPlotDF$Metabolite))
 
-png(file="Plots/qcPlot1.png",height=4,width=7,units="in",res=300)
+# png(file="Plots/qcPlot1.png",height=4,width=7,units="in",res=300)
 ggplot(qcPlotDF,aes(x=samp,y=log(Concentration),group=Metabolite,color=Metabolite)) + 
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
-dev.off()
+# dev.off()
 
 ############ Summary statistics ############
 summaryFun2<-function(metab){
@@ -156,15 +156,20 @@ for(metab in metabKey$metabID){
   update(model,10000); # Burnin for 10000 samples
   samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
   samp2<-data.frame(metab=metab,
+                    sCAD=as.numeric(samp[[1]][,"beta[1]"]),
                     T2=as.numeric(samp[[1]][,"beta[2]"]+samp[[1]][,"beta[1]"]),
                     Ind=as.numeric(samp[[1]][,"beta[3]"]+samp[[1]][,"beta[1]"]),
                     T1=as.numeric(samp[[1]][,"beta[4]"]+samp[[1]][,"beta[1]"]),
                     T1vssCAD=as.numeric(samp[[1]][,"beta[4]"]),
-                    T1vsT2=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[2]"]))
+                    T1vsT2=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[2]"]),
+                    T1vsInd=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[3]"]))
   samp3[[metab]]<-samp2
 }
 samp3<-do.call("rbind",samp3)
 rownames(samp3)<-NULL
+
+# Wide to long:
+samp4<-samp3 %>% gather(key=effect,value=value,-metab)
 
 # Summarize:
 ciFun<-function(x){
@@ -172,12 +177,9 @@ ciFun<-function(x){
   data.frame(mean=mean(x),median=median(x),lq=as.numeric(quants[1]),
              uq=as.numeric(quants[2]))
 }
-ciFun(samp3$T2[samp3$metab=="m1"])
-samp3 %>% group_by(metab) %>% do(ciFun(.$T2))
-
-df2DfromB$group<-factor(df2DfromB$group,levels=c("sCAD","Non-Thrombotic MI",
-                                                 "Indeterminate","Thrombotic MI"))
-lm1<-lm(d~group,data=df2DfromB %>% filter(metabID=="m1"))
+ptm<-proc.time()
+samp4Sum<-samp4 %>% group_by(metab,effect) %>% do(ciFun(.$value))
+ptm-proc.time()
 
 ############ BEST ############
 priors<-list(muM=0,muSD=2)
