@@ -127,6 +127,7 @@ summaryDF<-summaryDF %>% arrange(metabID,group)
 ############ Untargeted vs MRM ############
 # Make comparison data frame from targeted data:
 compDF<-df2 %>% gather(key="metabID",value="conc",-samp)
+compDF$conc<-as.numeric(compDF$conc)
 tempSamp<-str_split(compDF$samp,"-",simplify=TRUE)[,1:2]
 tempSamp<-paste(tempSamp[,1],tempSamp[,2],sep="-")
 compDF$samp<-tempSamp
@@ -134,11 +135,22 @@ rm(tempSamp)
 
 # Make a new sample name in untargeted data for matching:
 untarDF1$samp<-paste(untarDF1$ptid,gsub("-","",untarDF1$timepoint),sep="-")
-untarDF1$relAbund<-NA
-i<-1
-tempSamp<-untarDF1$samp[match(compDF$samp[i],untarDF1$samp)]
-tempMetab<-idMap$untargeted[match(compDF$metabID[i],idMap$targeted)]
-untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
+compDF$relAbund<-NA
+for(i in 1:nrow(compDF)){
+  tempSamp<-untarDF1$samp[match(compDF$samp[i],untarDF1$samp)]
+  tempMetab<-idMap$untargeted[match(compDF$metabID[i],idMap$targeted)]
+  compDF$relAbund[i]<-untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
+}
+compDF<-compDF[!is.na(compDF$relAbund),]
+
+# Example plot & linear model:
+rDF<-data.frame(metabID=unique(compDF$metabID),r=NA)
+for(i in 1:nrow(rDF)){
+  rDF$r[i]<-cor(x=compDF[compDF$metabID==lmRSqDF$metabID[i],"conc"],
+      y=compDF[compDF$metabID==lmRSqDF$metabID[i],"relAbund"],method="spearman")
+}
+ggplot(compDF %>% filter(metabID=="m6"),aes(x=conc,log2(relAbund))) + geom_point() +
+  theme_bw()
 
 ############ Change score linear model ############
 # Prepare data:
