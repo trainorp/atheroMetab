@@ -23,6 +23,13 @@ for(i in 1:nrow(phenoDF)){
   if(phenoDF$group[i]=="Indeterminate") phenoDF$oldGroup[i]<-NA
 }
 
+# Import Untargeted data and key:
+untarKey<-read.csv("../Data/metabolite_key2.csv")
+untarDF1<-read.csv("../Data/scaled.csv")
+
+# Mapping:
+idMap<-readxl::read_xlsx("Data/idMap.xlsx")
+
 ############ Data processing ############
 # QC data:
 df1$samp<-gsub("Biorec_preDeFilippis0","QC",df1$samp)
@@ -115,7 +122,23 @@ summaryDF$group<-factor(summaryDF$group,levels=c("sCAD","Non-Thrombotic MI",
                       "Indeterminate","Thrombotic MI"))
 summaryDF$metabID<-factor(summaryDF$metabID,levels=metabKey$metabID)
 summaryDF<-summaryDF %>% arrange(metabID,group)
-write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
+# write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
+
+############ Untargeted vs MRM ############
+# Make comparison data frame from targeted data:
+compDF<-df2 %>% gather(key="metabID",value="conc",-samp)
+tempSamp<-str_split(compDF$samp,"-",simplify=TRUE)[,1:2]
+tempSamp<-paste(tempSamp[,1],tempSamp[,2],sep="-")
+compDF$samp<-tempSamp
+rm(tempSamp)
+
+# Make a new sample name in untargeted data for matching:
+untarDF1$samp<-paste(untarDF1$ptid,gsub("-","",untarDF1$timepoint),sep="-")
+untarDF1$relAbund<-NA
+i<-1
+tempSamp<-untarDF1$samp[match(compDF$samp[i],untarDF1$samp)]
+tempMetab<-idMap$untargeted[match(compDF$metabID[i],idMap$targeted)]
+untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
 
 ############ Change score linear model ############
 # Prepare data:
