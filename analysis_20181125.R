@@ -139,18 +139,25 @@ compDF$relAbund<-NA
 for(i in 1:nrow(compDF)){
   tempSamp<-untarDF1$samp[match(compDF$samp[i],untarDF1$samp)]
   tempMetab<-idMap$untargeted[match(compDF$metabID[i],idMap$targeted)]
-  compDF$relAbund[i]<-untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
+  if(!is.na(tempSamp) & !is.na(tempMetab)){
+    compDF$relAbund[i]<-untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
+  }
 }
 compDF<-compDF[!is.na(compDF$relAbund),]
 
-# Example plot & linear model:
+# Plot & correlation:
 rDF<-data.frame(metabID=unique(compDF$metabID),r=NA)
 for(i in 1:nrow(rDF)){
-  rDF$r[i]<-cor(x=compDF[compDF$metabID==lmRSqDF$metabID[i],"conc"],
-      y=compDF[compDF$metabID==lmRSqDF$metabID[i],"relAbund"],method="spearman")
+  rDF$r[i]<-cor(x=compDF[compDF$metabID==rDF$metabID[i],"conc"],
+      y=compDF[compDF$metabID==rDF$metabID[i],"relAbund"],method="spearman")
+  
+  name1<-metabKey$`Full Name, synonym`[metabKey$metabID==rDF$metabID[i]]
+  name2<-untarKey$biochemical[match(idMap$untargeted[match(metabKey$metabID[i],idMap$targeted)],
+        untarKey$id)]
+  ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
+    geom_point() + theme_bw() + xlab("Log(Concentration)") + 
+    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n"))
 }
-ggplot(compDF %>% filter(metabID=="m6"),aes(x=conc,log2(relAbund))) + geom_point() +
-  theme_bw()
 
 ############ Change score linear model ############
 # Prepare data:
