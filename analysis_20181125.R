@@ -157,9 +157,18 @@ for(i in 1:nrow(rDF)){
   name2<-untarKey$biochemical[match(idMap$untargeted[match(rDF$metabID[i],idMap$targeted)],
         untarKey$id)]
   
+  # Label location:
+  minX<-min(compDF[compDF$metabID==rDF$metabID[i],"conc"])
+  maxX<-max(compDF[compDF$metabID==rDF$metabID[i],"conc"])
+  xLoc<-minX+1*(maxX-minX)/9
+  minY<-min(log2(compDF[compDF$metabID==rDF$metabID[i],"relAbund"]))
+  maxY<-max(log2(compDF[compDF$metabID==rDF$metabID[i],"relAbund"]))
+  yLoc<-minY+8*(maxY-minY)/9
+  
   plotList[[i]]<-ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
     geom_point() + theme_bw() + xlab("Log(Concentration)") + 
-    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n"))
+    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n")) +
+    annotate("text",x=xLoc,y=yLoc,label=paste("r = ",formatC(rDF$r[i],digits=3)))
 }
 png(file="idk.png",height=67,width=12,res=100,units="in")
 gridExtra::grid.arrange(grobs=plotList,ncol=3)
