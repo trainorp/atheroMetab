@@ -152,8 +152,9 @@ for(i in 1:nrow(rDF)){
   rDF$r[i]<-cor(x=compDF[compDF$metabID==rDF$metabID[i],"conc"],
       y=compDF[compDF$metabID==rDF$metabID[i],"relAbund"],method="spearman")
   
-  name1<-metabKey$`Full Name, synonym`[metabKey$metabID==rDF$metabID[i]]
-  name2<-untarKey$biochemical[match(idMap$untargeted[match(metabKey$metabID[i],idMap$targeted)],
+  name1<-paste(rDF$metabID[i],
+               ": ",metabKey$`Full Name, synonym`[metabKey$metabID==rDF$metabID[i]])
+  name2<-untarKey$biochemical[match(idMap$untargeted[match(rDF$metabID[i],idMap$targeted)],
         untarKey$id)]
   
   plotList[[i]]<-ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
