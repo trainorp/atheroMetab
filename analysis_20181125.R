@@ -147,7 +147,7 @@ compDF<-compDF[!is.na(compDF$relAbund),]
 
 # Plot & correlation:
 rDF<-data.frame(metabID=unique(compDF$metabID),r=NA)
-pdf(file="corPlots.pdf",height=4,width=6,onefile=TRUE)
+plotList<-list()
 for(i in 1:nrow(rDF)){
   rDF$r[i]<-cor(x=compDF[compDF$metabID==rDF$metabID[i],"conc"],
       y=compDF[compDF$metabID==rDF$metabID[i],"relAbund"],method="spearman")
@@ -156,10 +156,12 @@ for(i in 1:nrow(rDF)){
   name2<-untarKey$biochemical[match(idMap$untargeted[match(metabKey$metabID[i],idMap$targeted)],
         untarKey$id)]
   
-  print(ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
+  plotList[[i]]<-ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
     geom_point() + theme_bw() + xlab("Log(Concentration)") + 
-    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n")))
+    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n"))
 }
+png(file="idk.png",height=67,width=12,res=100,units="in")
+gridExtra::grid.arrange(grobs=plotList,ncol=3)
 dev.off()
 
 ############ Change score linear model ############
