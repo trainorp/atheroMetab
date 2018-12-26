@@ -174,6 +174,10 @@ png(file="idk.png",height=67,width=12,res=100,units="in")
 gridExtra::grid.arrange(grobs=plotList,ncol=3)
 dev.off()
 
+############ Correlation between metabolites ############
+metabCor<-cor(df2b[,names(df2b) %in% metabKey$metabID],method="spearman")
+rownames(metabCor)<-colnames(metabCor)<-metabKey$Metabolite
+
 ############ Change score linear model ############
 # Prepare data:
 df2DfromB<-df2b %>% select(-samp,-coarseGroup,-oldMIGroup,-oldGroup) %>% 
