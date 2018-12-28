@@ -177,7 +177,7 @@ dev.off()
 ############ Correlation between metabolites ############
 metabCor<-cor(df2b[,names(df2b) %in% metabKey$metabID],method="spearman")
 rownames(metabCor)<-colnames(metabCor)<-metabKey$Metabolite
-write.csv(metabCor,file="metabCor.csv",row.names=FALSE)
+write.csv(metabCor,file="Results/metabCor.csv",row.names=FALSE)
 
 # Correlation plot:
 png(file="Plots/absCor.png",height=5,width=5,units="in",res=300)
@@ -248,31 +248,20 @@ ptm<-proc.time()
 samp4Sum<-samp4 %>% group_by(metab,effect) %>% do(ciFun(.$value))
 proc.time()-ptm
 
-############ BEST ############
-priors<-list(muM=0,muSD=2)
-na.omit(df2$m1[df1$group=="Thrombotic MI"])
-bestM1<-BEST::BESTmcmc(na.omit(df2$m1[df1$group=="Thrombotic MI"]),
-                    na.omit(df2$m1[df1$group=="Non-Thrombotic MI"]),
-                    priors=NULL, parallel=FALSE)
+# Join metabolite names:
+sampSum<-samp4Sum
+sampSum$Est<-paste0(sapply(samp4Sum$median,FUN=function(x) format(x,digits=2,nsmall=2))," (",
+      sapply(samp4Sum$lq,FUN=function(x) format(x,digits=2,nsmall=2)),", ",
+      sapply(samp4Sum$uq,FUN=function(x) format(x,digits=2,nsmall=2)),")")
+sampSum<-sampSum %>% select(metabID=metab,effect,Est)
+sampSum<-metabKey %>% select(metabID,Metabolite,`Full Name, synonym`) %>% 
+  right_join(sampSum)
 
-# BANOVA
-coefs2<-list()
-for(var1 in metabKey$metabID){
-  df2Temp<-as.data.frame(df2[!(is.na(df2$group)),
-                             names(df2) %in% c(var1,"group","ptid")])
-  df2Temp$group<-factor(df2Temp$group,
-    levels=c("sCAD","Non-Thrombotic MI",
-             "Indeterminate","Thrombotic MI"))
-  df2$ptid<-factor(df2$ptid)
-  form1<-as.formula(paste0(var1,"~1"))
-  banova1<-BANOVA::BANOVA.Normal(form1,~group,data=df2Temp,id=df2Temp$ptid)
-  coefs1<-banova1$coef.tables$coeff_table
-  coefs1$var<-var1
-  coefs2[[var1]]<-coefs1
-}
-coefs2<-do.call("rbind",coefs2)
-coefs2$group<-str_split(rownames(coefs2),"  :  ",simplify=TRUE)[,2]
-rownames(coefs2)<-NULL
+# Make nice:
+sampSum<-sampSum %>% spread(key=effect,value=Est)
+sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2,
+                            Ind,T1,T1vssCAD,T1vsT2,T1vsInd)
+write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
