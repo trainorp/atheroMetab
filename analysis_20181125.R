@@ -296,8 +296,9 @@ model{
     beta0[r]<-scaledBeta0[r]-sum(scaledBeta[r,1:p]*meanX[1:p]/sdX[1:p])
   }
 }"
-y<-as.numeric(as.factor(df2b$group))
-x<-df2b[,names(df2b)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")]
+df2bT0<-df2b %>% filter(timept=="T0")
+y<-as.numeric(as.factor(df2bT0$group))
+x<-df2bT0[,names(df2bT0)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")]
 p<-dim(x)[2]
 n<-dim(x)[1]
 nGrps<-length(unique(y))
