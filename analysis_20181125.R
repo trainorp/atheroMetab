@@ -170,13 +170,19 @@ for(i in 1:nrow(rDF)){
     ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n")) +
     annotate("text",x=xLoc,y=yLoc,label=paste("r = ",formatC(rDF$r[i],digits=3)))
 }
-png(file="idk.png",height=67,width=12,res=100,units="in")
+png(file="Plots/rel2AbsCor.png",height=67,width=12,res=100,units="in")
 gridExtra::grid.arrange(grobs=plotList,ncol=3)
 dev.off()
 
 ############ Correlation between metabolites ############
 metabCor<-cor(df2b[,names(df2b) %in% metabKey$metabID],method="spearman")
 rownames(metabCor)<-colnames(metabCor)<-metabKey$Metabolite
+write.csv(metabCor,file="metabCor.csv",row.names=FALSE)
+
+# Correlation plot:
+png(file="Plots/absCor.png",height=5,width=5,units="in",res=300)
+corrplot::corrplot(metabCor,order="hclust",tl.cex=.4)
+dev.off()
 
 ############ Change score linear model ############
 # Prepare data:
