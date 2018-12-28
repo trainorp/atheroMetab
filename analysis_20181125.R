@@ -270,7 +270,7 @@ data{
     meanX[j]<-mean(x[,j])
     sdX[j]<-sd(x[,j])
     for(i in 1:n){
-      zx[i,j]<-(x[i,j]-meanX[j])/sdX[j]
+      scaledX[i,j]<-(x[i,j]-meanX[j])/sdX[j]
     }
   }
 }
@@ -278,36 +278,37 @@ model{
   for(i in 1:n){
     y[i]~dcat(explambda[1:nGrps,i])
     for(r in 1:nGrps){
-      explambda[r,i]<-exp(zbeta0[r]+sum(zbeta[r,1:p]*zx[i,1:p]))
+      explambda[r,i]<-exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
     }
   }
-  zbeta0[1]<-0
+  scaledBeta0[1]<-0
   for(j in 1:p){
-    zbeta[1,j]<-0
+    scaledBeta[1,j]<-0
   }
   for(r in 2:nGrps){
-    zbeta0[r]~dnorm(0,0.0001)
+    scaledBeta0[r]~dnorm(0,0.0001)
     for(j in 1:p){
-      zbeta[r,j]~dnorm(0,.0001)
+      scaledBeta[r,j]~dnorm(0,.0001)
     }
   }
   for(r in 1:nGrps){
-    beta[r,1:p]<-zbeta[r,1:p]/sdX[1:p]
-    beta0[r]<-zbeta0[r]-sum(zbeta[r,1:p]*meanX[1:p]/sdX[1:p])
+    beta[r,1:p]<-scaledBeta[r,1:p]/sdX[1:p]
+    beta0[r]<-scaledBeta0[r]-sum(scaledBeta[r,1:p]*meanX[1:p]/sdX[1:p])
   }
 }"
 y<-as.numeric(as.factor(df2b$group))
-x<-df2b[,names(df2b)%in%c("m1","m3","m12","m27")]
+x<-df2b[,names(df2b)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")]
 p<-dim(x)[2]
 n<-dim(x)[1]
 nGrps<-length(unique(y))
 model<-rjags::jags.model(file=textConnection(rJAGSModel2),
                          data=list(y=y,x=x,p=p,n=n,nGrps=nGrps),
-                         n.chains=4)
+                         n.chains=1)
 
 update(model,10000); # Burnin for 10000 samples
-samp<-rjags::coda.samples(model,variable.names=c("beta0" ,  "beta" ,  
-                                                 "zbeta0" , "zbeta"),n.iter=20000)
+samp<-rjags::coda.samples(model,
+                          variable.names=c("beta0","beta","scaledBeta0","scaledBeta"),
+                          n.iter=20000)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
