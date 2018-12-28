@@ -193,7 +193,7 @@ df2DfromB$d<-df2DfromB$T0-df2DfromB$TFU
 df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
 
 # JAGS model:
-rJagsModel<-"model{
+rJAGSModel<-"model{
   # Likelihood:
   for(i in 1:n){
     Y[i]~dnorm(mu[i],invVar)
@@ -215,7 +215,7 @@ rJagsModel<-"model{
 samp3<-list()
 for(metab in metabKey$metabID){
   df2DfromBTemp<-df2DfromB %>% filter(metabID==metab & !is.na(TFU) & !is.na(T0))
-  model<-rjags::jags.model(textConnection(rJagsModel),
+  model<-rjags::jags.model(textConnection(rJAGSModel),
                            data=list(Y=df2DfromBTemp$d,ThrombMI=df2DfromBTemp$`Thrombotic MI`,
                                      NonThrombMI=df2DfromBTemp$`Non-Thrombotic MI`,
                                      Indeterminate=df2DfromBTemp$Indeterminate,n=nrow(df2DfromBTemp)))
@@ -262,6 +262,52 @@ sampSum<-sampSum %>% spread(key=effect,value=Est)
 sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2,
                             Ind,T1,T1vssCAD,T1vsT2,T1vsInd)
 write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
+
+############ T0 Bayesian model ############
+rJAGSModel2<-"
+data{
+  for(j in 1:Nx){
+    xm[j]<-mean(x[,j])
+    xsd[j]<-sd(x[,j])
+    for(i in 1:Ntotal){
+      zx[i,j]<-(x[i,j]-xm[j])/xsd[j]
+    }
+  }
+}
+model{
+  for(i in 1:Ntotal){
+    y[i]~dcat(explambda[1:Nout,i])
+    for(r in 1:Nout){
+      explambda[r,i]<-exp(zbeta0[r]+sum(zbeta[r,1:Nx]*zx[i,1:Nx]))
+    }
+  }
+  zbeta0[1]<-0
+  for(j in 1:Nx){
+    zbeta[1,j]<-0
+  }
+  for(r in 2:Nout){
+    zbeta0[r]~dnorm(0,0.0001)
+    for(j in 1:Nx){
+      zbeta[r,j]~dnorm(0,.0001)
+    }
+  }
+  for(r in 1:Nout){
+    beta[r,1:Nx]<-zbeta[r,1:Nx]/xsd[1:Nx]
+    beta0[r]<-zbeta0[r]-sum(zbeta[r,1:Nx]*xm[1:Nx]/xsd[1:Nx])
+  }
+}"
+y<-as.numeric(as.factor(df2b$group))
+x<-df2b[,names(df2b)%in%c("m1","m3","m12","m27")]
+Nx<-dim(x)[2]
+Ntotal<-dim(x)[1]
+Nout<-length(unique(y))
+model<-rjags::jags.model(file=textConnection(rJAGSModel2),
+                         data=list(y=y,x=x,Nx=Nx,Ntotal=Ntotal,Nout=Nout),
+                         n.chains=4)
+
+update(model,10000); # Burnin for 10000 samples
+samp<-rjags::coda.samples(model,variable.names=c("beta0" ,  "beta" ,  
+                                                 "zbeta0" , "zbeta"),n.iter=20000)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
