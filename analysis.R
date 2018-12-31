@@ -170,19 +170,19 @@ for(i in 1:nrow(rDF)){
     ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n")) +
     annotate("text",x=xLoc,y=yLoc,label=paste("r = ",formatC(rDF$r[i],digits=3)))
 }
-png(file="Plots/rel2AbsCor.png",height=67,width=12,res=100,units="in")
+# png(file="Plots/rel2AbsCor.png",height=67,width=12,res=100,units="in")
 gridExtra::grid.arrange(grobs=plotList,ncol=3)
-dev.off()
+# dev.off()
 
 ############ Correlation between metabolites ############
 metabCor<-cor(df2b[,names(df2b) %in% metabKey$metabID],method="spearman")
 rownames(metabCor)<-colnames(metabCor)<-metabKey$Metabolite
-write.csv(metabCor,file="Results/metabCor.csv",row.names=FALSE)
+# write.csv(metabCor,file="Results/metabCor.csv",row.names=FALSE)
 
 # Correlation plot:
-png(file="Plots/absCor.png",height=5,width=5,units="in",res=300)
+# png(file="Plots/absCor.png",height=5,width=5,units="in",res=300)
 corrplot::corrplot(metabCor,order="hclust",tl.cex=.4)
-dev.off()
+# dev.off()
 
 ############ Change score linear model ############
 # Prepare data:
@@ -193,7 +193,8 @@ df2DfromB$d<-df2DfromB$T0-df2DfromB$TFU
 df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
 
 # JAGS model:
-rJAGSModel<-"model{
+rJAGSModel<-"
+model{
   # Likelihood:
   for(i in 1:n){
     Y[i]~dnorm(mu[i],invVar)
@@ -261,9 +262,9 @@ sampSum<-metabKey %>% select(metabID,Metabolite,`Full Name, synonym`) %>%
 sampSum<-sampSum %>% spread(key=effect,value=Est)
 sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2,
                             Ind,T1,T1vssCAD,T1vsT2,T1vsInd)
-write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
+# write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
 
-############ T0 Bayesian model ############
+############ T0 Bayesian model fitting ############
 rJAGSModel2<-"
 data{
   for(j in 1:p){
@@ -310,6 +311,11 @@ update(model,10000); # Burnin for 10000 samples
 samp<-rjags::coda.samples(model,
                           variable.names=c("beta0","beta","scaledBeta0","scaledBeta"),
                           n.iter=20000)
+
+# plot(1:10000,as.matrix(samp[[1]])[,"beta[2,1]"][1:10000],type="l")
+
+############ T0 Bayesian model prediction ############
+
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
