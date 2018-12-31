@@ -312,7 +312,8 @@ samp<-rjags::coda.samples(model,
                           variable.names=c("beta0","beta","scaledBeta0","scaledBeta"),
                           n.iter=20000)
 
-# plot(1:10000,as.matrix(samp[[1]])[,"beta[2,1]"][1:10000],type="l")
+samp<-as.matrix(samp[[1]])
+plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
 
 ############ T0 Bayesian model prediction ############
 
