@@ -327,23 +327,18 @@ for(g in 1:3){
   groupExp[,g]<-exp(sampBeta0[1] + as.matrix(x) %*% sampBeta[1,])
 }
 apply(groupExp,1,sum)
-groupProbs<-groupExp / apply(groupExp,1,sum)
+groupProbs<-groupExp/apply(groupExp,1,sum)
 groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 
-############ T0 Analysis ############
-ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
-       aes(x=timept,y=log(m34),group=ptid,color=group)) + 
-  geom_line() + geom_point() + theme_bw()
-
+############ RF ############
 # Random Forests
-df2c<-df2b %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
-df2c$group<-factor(df2c$group)
-df2c<-oxPLDF %>% select(ptid,tropT0) %>% full_join(df2c)
+df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
+# Formula without troponin:
 form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
+# Formula with troponin:
 form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+"),"+tropT0"))
-randomForest::randomForest(form0,data=df2c %>% filter(timept=="T0"),ntree=10000,
-                           strata=df2c$group,sampsize=15)
-randomForest::randomForest(form0,data=df2c %>% filter(timept=="T0"),ntree=10000)
-randomForest::randomForest(form1,data=df2c %>% filter(timept=="T0"),ntree=10000,
-                           strata=df2c$group,sampsize=11)
 
+rF0<-randomForest::randomForest(form0,data=df2bT0,ntree=10000,importance=TRUE,
+                           strata=df2bT0,sampsize=12)
+rF1<-randomForest::randomForest(form1,data=df2bT0,ntree=10000,importance=TRUE,
+                           strata=df2bT0,sampsize=12)
