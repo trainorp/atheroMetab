@@ -287,9 +287,9 @@ model{
     scaledBeta[1,j]<-0
   }
   for(r in 2:nGrps){
-    scaledBeta0[r]~dnorm(0,0.0001)
+    scaledBeta0[r]~dnorm(0,0.01)
     for(j in 1:p){
-      scaledBeta[r,j]~dnorm(0,.0001)
+      scaledBeta[r,j]~dnorm(0,.01)
     }
   }
   for(r in 1:nGrps){
@@ -317,7 +317,7 @@ samp<-as.matrix(samp[[1]])
 plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
 
 ############ T0 Bayesian model prediction ############
-# exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
+# Calculate group probabilities for one iteration of Gibbs sampler
 groupExp<-matrix(NA,nrow=nrow(x),ncol=3)
 colnames(groupExp)<-levels(as.factor(df2bT0$group))
 for(g in 1:3){
@@ -328,6 +328,7 @@ for(g in 1:3){
 }
 apply(groupExp,1,sum)
 groupProbs<-groupExp / apply(groupExp,1,sum)
+groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
