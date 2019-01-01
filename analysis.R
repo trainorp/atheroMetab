@@ -297,7 +297,8 @@ model{
     beta0[r]<-scaledBeta0[r]-sum(scaledBeta[r,1:p]*meanX[1:p]/sdX[1:p])
   }
 }"
-df2bT0<-df2b %>% filter(timept=="T0")
+df2bT0<-df2b %>% filter(timept=="T0" & group!="Indeterminate")
+df2bT0$group<-factor(df2bT0$group,levels=c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
 y<-as.numeric(as.factor(df2bT0$group))
 x<-df2bT0[,names(df2bT0)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")]
 p<-dim(x)[2]
@@ -317,10 +318,16 @@ plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
 
 ############ T0 Bayesian model prediction ############
 # exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
-betaVars<-paste0("beta[2,",1:9,"]")
-sampBeta<-samp[,match(betaVars,colnames(samp))]
-sampBeta0<-samp[,match("beta0[2]",colnames(samp))]
-exp(sampBeta0[1] + as.matrix(x) %*% sampBeta[1,])
+groupExp<-matrix(NA,nrow=nrow(x),ncol=4)
+colnames(groupExp)<-levels(as.factor(df2bT0$group))
+for(g in 1:4){
+  betaVars<-paste0("beta[",g,",",1:9,"]")
+  sampBeta<-samp[,match(betaVars,colnames(samp))]
+  sampBeta0<-samp[,match(paste0("beta0[",g,"]"),colnames(samp))]
+  groupExp[,g]<-exp(sampBeta0[1] + as.matrix(x) %*% sampBeta[1,])
+}
+apply(groupExp,1,sum)
+groupProbs<-groupExp / apply(groupExp,1,sum)
 
 ############ T0 Analysis ############
 ggplot(df2 %>% filter(group %in% c("Thrombotic MI","Non-Thrombotic MI","sCAD")),
