@@ -338,7 +338,15 @@ form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
 # Formula with troponin:
 form1<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+"),"+tropT0"))
 
+# Ensemble without troponin:
 rF0<-randomForest::randomForest(form0,data=df2bT0,ntree=10000,importance=TRUE,
                            strata=df2bT0,sampsize=12)
+rF0Imp<-randomForest::importance(rF0)
+
+# Ensemble with troponin:
 rF1<-randomForest::randomForest(form1,data=df2bT0,ntree=10000,importance=TRUE,
                            strata=df2bT0,sampsize=12)
+rF1Imp<-randomForest::importance(rF1)
+rF1Imp<-as.data.frame(rF1Imp)
+rF1Imp$metabID<-rownames(rF1Imp)
+rF1Imp<-rF1Imp %>% left_join(metabKey)
