@@ -277,10 +277,10 @@ data{
 }
 model{
   for(i in 1:n){
-    y[i]~dcat(explambda[1:nGrps,i])
     for(r in 1:nGrps){
       explambda[r,i]<-exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
     }
+    y[i]~dcat(explambda[1:nGrps,i])
   }
   scaledBeta0[1]<-0
   for(j in 1:p){
@@ -318,9 +318,9 @@ plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
 
 ############ T0 Bayesian model prediction ############
 # exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
-groupExp<-matrix(NA,nrow=nrow(x),ncol=4)
+groupExp<-matrix(NA,nrow=nrow(x),ncol=3)
 colnames(groupExp)<-levels(as.factor(df2bT0$group))
-for(g in 1:4){
+for(g in 1:3){
   betaVars<-paste0("beta[",g,",",1:9,"]")
   sampBeta<-samp[,match(betaVars,colnames(samp))]
   sampBeta0<-samp[,match(paste0("beta0[",g,"]"),colnames(samp))]
