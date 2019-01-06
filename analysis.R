@@ -330,9 +330,13 @@ apply(groupExp,1,sum)
 groupProbs<-groupExp/apply(groupExp,1,sum)
 groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 
-############ RF ############
-# Random Forests
+############ GLM-net variable selection ############
 df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
+cvFit<-glmnet::cv.glmnet(x=as.data.frame(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                         y=as.data.frame(psych::dummy.code(df2bT0$group)),
+                         family="multinomial")
+
+############ RF ############
 # Formula without troponin:
 form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
 # Formula with troponin:
