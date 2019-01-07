@@ -332,9 +332,21 @@ groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 
 ############ GLM-net variable selection ############
 df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
-cvFit<-glmnet::cv.glmnet(x=as.data.frame(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                         y=as.data.frame(psych::dummy.code(df2bT0$group)),
-                         family="multinomial")
+
+cvDF1<-expand.grid(rep=1:10,alpha=seq(0,1,.05),mis=NA)
+for(i in 1:nrow(cvDF1)){
+  set.seed(cvDF1$rep[i])
+  folds<-sample(rep(seq(10),length=nrow(df2bT0)))
+  cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           family="multinomial",type.measure="class",foldid=folds)
+  cvDF1$mis[i]<-cvFit$cvm[cvFit$lambda==cvFit$lambda.min]
+}
+
+plot(cvFit)
+
+png(file="Plots/")
+
 
 ############ RF ############
 # Formula without troponin:
