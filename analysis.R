@@ -330,9 +330,29 @@ apply(groupExp,1,sum)
 groupProbs<-groupExp/apply(groupExp,1,sum)
 groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 
-############ RF ############
-# Random Forests
+############ GLM-net variable selection ############
 df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
+
+cvDF1<-expand.grid(rep=1:10,alpha=seq(0,1,.05),mis=NA,deviance=NA)
+for(i in 1:nrow(cvDF1)){
+  set.seed(cvDF1$rep[i])
+  folds<-sample(rep(seq(10),length=nrow(df2bT0)))
+  cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           family="multinomial",type.measure="class",foldid=folds)
+  cvDF1$mis[i]<-cvFit$cvm[cvFit$lambda==cvFit$lambda.min]
+  cvFit2<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           family="multinomial",foldid=folds)
+  cvDF1$deviance[i]<-cvFit2$cvm[cvFit2$lambda==cvFit2$lambda.min]
+}
+
+plot(cvFit)
+
+png(file="Plots/")
+
+
+############ RF ############
 # Formula without troponin:
 form0<-as.formula(paste0("group~",paste(metabKey$metabID,collapse="+")))
 # Formula with troponin:
