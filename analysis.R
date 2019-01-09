@@ -339,11 +339,11 @@ for(i in 1:nrow(cvDF1)){
   set.seed(cvDF1$rep[i])
   folds<-sample(rep(seq(10),length=nrow(df2bT0)))
   cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           y=df2bT0$group,alpha=cvDF1$alpha[i],type.multinomial="grouped",
                            family="multinomial",type.measure="class",foldid=folds)
   cvDF1$mis[i]<-cvFit$cvm[cvFit$lambda==cvFit$lambda.min]
   cvFit2<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           y=df2bT0$group,alpha=cvDF1$alpha[i],type.multinomial="grouped",
                            family="multinomial",foldid=folds)
   cvDF1$deviance[i]<-cvFit2$cvm[cvFit2$lambda==cvFit2$lambda.min]
   print(i)
@@ -360,11 +360,11 @@ for(i in 1:nrow(cvDF2)){
   set.seed(cvDF2$rep[i])
   folds<-sample(rep(seq(10),length=nrow(df2bT0)))
   cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                           y=as.numeric(df2bT0$group),alpha=.05,
+                           y=df2bT0$group,alpha=.05,type.multinomial="grouped",
                            family="multinomial",type.measure="class",foldid=folds)
   cvDF2$minLambdaMis[i]<-cvFit$lambda.min
   cvFit2<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                            y=as.numeric(df2bT0$group),alpha=.05,
+                            y=df2bT0$group,alpha=.05,type.multinomial="grouped",
                             family="multinomial",foldid=folds)
   cvDF2$minLambdaDeviance[i]<-cvFit2$lambda.min
   print(i)
@@ -381,10 +381,11 @@ plot(cvFit2)
 dev.off()
 
 eNetModel<-glmnet::glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-               y=as.numeric(df2bT0$group),alpha=.05,lambda=lambda,
+               y=df2bT0$group,alpha=.05,lambda=lambda,
                family="multinomial")
 eNetModelCoef<-coef(eNetModel)
 eNetModelCoef<-do.call("cbind",lapply(eNetModelCoef,as.matrix))
+eNetModelCoef[,2]-eNetModelCoef[,1]
 
 ############ RF ############
 # Formula without troponin:
