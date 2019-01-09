@@ -414,6 +414,18 @@ for(i in 1:length(looList)){
   eNetPred<-cbind(df2bT0[i,c("ptid","group")],t(as.matrix(eNetPred)))
   looENetDF<-rbind(looENetDF,eNetPred)
 }
+looENetDF$pred<-c("Thrombotic MI","Non-Thrombotic MI","sCAD")[apply(looENetDF[,c("Thrombotic MI",
+                                            "Non-Thrombotic MI","sCAD")],1,which.max)]
+write.csv(looENetDF,"Results/looENet.csv",row.names=FALSE)
+
+# Confusion analysis:
+ENetConf<-xtabs(~group+pred,data=looENetDF)
+write.csv(ENetConf,"Results/ENetConf.csv")
+
+looENetDF$nT1<-ifelse(looENetDF$group!="Thrombotic MI","nT1","T1")
+looENetDF$predNT1<-ifelse(looENetDF$pred!="Thrombotic MI","nT1","T1")
+ENetConfNT1<-xtabs(~nT1+predNT1,data=looENetDF)
+write.csv(ENetConfNT1,"Results/ENetConfNT1.csv")
 
 ############ RF ############
 # Formula without troponin:
