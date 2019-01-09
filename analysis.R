@@ -333,24 +333,73 @@ groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
 ############ GLM-net variable selection ############
 df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
 
-cvDF1<-expand.grid(rep=1:10,alpha=seq(0,1,.05),mis=NA,deviance=NA)
+# CV selection of alpha:
+cvDF1<-expand.grid(rep=1:20,alpha=seq(0,1,.05),mis=NA,deviance=NA)
 for(i in 1:nrow(cvDF1)){
   set.seed(cvDF1$rep[i])
   folds<-sample(rep(seq(10),length=nrow(df2bT0)))
   cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           y=df2bT0$group,alpha=cvDF1$alpha[i],type.multinomial="grouped",
                            family="multinomial",type.measure="class",foldid=folds)
   cvDF1$mis[i]<-cvFit$cvm[cvFit$lambda==cvFit$lambda.min]
   cvFit2<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
-                           y=as.numeric(df2bT0$group),alpha=cvDF1$alpha[i],
+                           y=df2bT0$group,alpha=cvDF1$alpha[i],type.multinomial="grouped",
                            family="multinomial",foldid=folds)
   cvDF1$deviance[i]<-cvFit2$cvm[cvFit2$lambda==cvFit2$lambda.min]
+  print(i)
 }
+cvDF1Sum<-cvDF1 %>% group_by(alpha) %>% summarize(mis=mean(mis),deviance=mean(deviance))
+cvDF1Sum<-cvDF1Sum %>% mutate(misRank=rank(mis,ties.method='first'),
+                         devianceRank=rank(deviance,ties.method='first'),
+                         rankSum=misRank+devianceRank)
 
+# Set alpha:
+alpha<-.10
+# CV selection of lambda:
+cvDF2<-data.frame(rep=1:20,minLambdaMis=NA,minLambdaDeviance=NA)
+for(i in 1:nrow(cvDF2)){
+  set.seed(cvDF2$rep[i])
+  folds<-sample(rep(seq(10),length=nrow(df2bT0)))
+  cvFit<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                           y=df2bT0$group,alpha=alpha,type.multinomial="grouped",
+                           family="multinomial",type.measure="class",foldid=folds)
+  cvDF2$minLambdaMis[i]<-cvFit$lambda.min
+  cvFit2<-glmnet::cv.glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+                            y=df2bT0$group,alpha=alpha,type.multinomial="grouped",
+                            family="multinomial",foldid=folds)
+  cvDF2$minLambdaDeviance[i]<-cvFit2$lambda.min
+  print(i)
+}
+cvDF2Sum<-cvDF2 %>% summarize(lambdaMis=mean(minLambdaMis),lambdaDeviance=mean(minLambdaDeviance))
+lambda<-cvDF2Sum$lambdaMis
+
+png(file="Plots/eNetCVMis.png",height=5,width=6,units="in",res=300)
 plot(cvFit)
+dev.off()
 
-png(file="Plots/")
+png(file="Plots/eNetCVDev.png",height=5,width=6,units="in",res=300)
+plot(cvFit2)
+dev.off()
 
+# "Final model"
+eNetModel<-glmnet::glmnet(x=as.matrix(df2bT0[,names(df2bT0) %in% metabKey$metabID]),
+               y=df2bT0$group,alpha=alpha,type.multinomial="grouped",lambda=lambda,
+               family="multinomial")
+eNetModelCoef<-coef(eNetModel)
+eNetCoefNames<-names(eNetModelCoef)
+eNetModelCoef<-do.call("cbind",lapply(eNetModelCoef,as.matrix))
+eNetModelCoef<-as.data.frame(eNetModelCoef)
+names(eNetModelCoef)<-eNetCoefNames
+eNetModelCoef<-eNetModelCoef[eNetModelCoef[,1]!=0,]
+eNetModelCoef$metabID<-rownames(eNetModelCoef)
+
+# Join with metabolite key:
+eNetModelCoef<-as.data.frame(right_join(metabKey %>% select(Metabolite,metabID), eNetModelCoef))
+
+# Comparison to ref:
+eNetModelCoef$ThrombvsNon<-eNetModelCoef[,"Thrombotic MI"]-eNetModelCoef[,"Non-Thrombotic MI"]
+eNetModelCoef$ThrombvsSCAD<-eNetModelCoef[,"Thrombotic MI"]-eNetModelCoef[,"sCAD"]
+write.csv("Results/eNetCoefs.csv",row.names=FALSE)
 
 ############ RF ############
 # Formula without troponin:
