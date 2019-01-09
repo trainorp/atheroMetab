@@ -399,7 +399,21 @@ eNetModelCoef<-as.data.frame(right_join(metabKey %>% select(Metabolite,metabID),
 # Comparison to ref:
 eNetModelCoef$ThrombvsNon<-eNetModelCoef[,"Thrombotic MI"]-eNetModelCoef[,"Non-Thrombotic MI"]
 eNetModelCoef$ThrombvsSCAD<-eNetModelCoef[,"Thrombotic MI"]-eNetModelCoef[,"sCAD"]
-write.csv("Results/eNetCoefs.csv",row.names=FALSE)
+write.csv(eNetModelCoef,"Results/eNetCoefs.csv",row.names=FALSE)
+
+# Predictions:
+set.seed(333)
+looList<-sample(1:nrow(df2bT0))
+looENetDF<-data.frame()
+for(i in 1:length(looList)){
+  eNetModel<-glmnet::glmnet(x=as.matrix(df2bT0[-i,names(df2bT0) %in% metabKey$metabID]),
+                y=df2bT0$group[-i],alpha=alpha,type.multinomial="grouped",lambda=lambda,
+                family="multinomial")
+  eNetPred<-predict(eNetModel,newx=as.matrix(df2bT0[i,names(df2bT0) %in% metabKey$metabID]),
+                    type="response")[,,1]
+  eNetPred<-cbind(df2bT0[i,c("ptid","group")],t(as.matrix(eNetPred)))
+  looENetDF<-rbind(looENetDF,eNetPred)
+}
 
 ############ RF ############
 # Formula without troponin:
