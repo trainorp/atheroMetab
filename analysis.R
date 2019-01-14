@@ -171,7 +171,7 @@ for(i in 1:nrow(rDF)){
     annotate("text",x=xLoc,y=yLoc,label=paste("r = ",formatC(rDF$r[i],digits=3)))
 }
 # png(file="Plots/rel2AbsCor.png",height=67,width=12,res=100,units="in")
-gridExtra::grid.arrange(grobs=plotList,ncol=3)
+# gridExtra::grid.arrange(grobs=plotList,ncol=3)
 # dev.off()
 
 ############ Correlation between metabolites ############
@@ -262,6 +262,9 @@ sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2
                             Ind,T1,T1vssCAD,T1vsT2,T1vsInd)
 # write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
 
+# Temp save:
+save.image("working_20190113.RData")
+
 ############ T0 Bayesian model fitting ############
 rJAGSModel2<-"
 data{
@@ -312,6 +315,7 @@ samp<-rjags::coda.samples(model,
                           n.iter=20000)
 
 samp<-as.matrix(samp[[1]])
+acf(samp[,"beta[3,1]"][1:10000])
 plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
 
 ############ T0 Bayesian model prediction ############
