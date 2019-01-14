@@ -245,9 +245,7 @@ ciFun<-function(x){
   data.frame(mean=mean(x),median=median(x),lq=as.numeric(quants[1]),
              uq=as.numeric(quants[2]))
 }
-ptm<-proc.time()
 samp4Sum<-samp4 %>% group_by(metab,effect) %>% do(ciFun(.$value))
-proc.time()-ptm
 
 # Join metabolite names:
 sampSum<-samp4Sum
