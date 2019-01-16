@@ -1,9 +1,11 @@
 ############ Prereqs ############
+## Start always run:
 options(stringsAsFactors=FALSE,scipen=900)
 library(pillar)
 library(tidyverse)
 
 setwd("~/gdrive/AthroMetab/WCMC")
+## End always run
 
 # Import WCMC data:
 df1<-readxl::read_xlsx("Data/targetedData_20181203.xlsx")
@@ -266,6 +268,8 @@ sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2
 save.image("working_20190113.RData")
 
 ############ T0 Bayesian model fitting ############
+load("working_20190113.RData")
+
 rJAGSModel2<-"
 data{
   for(j in 1:p){
