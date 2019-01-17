@@ -269,58 +269,76 @@ save.image("working_20190113.RData")
 
 ############ T0 Bayesian model fitting ############
 load("working_20190113.RData")
-
 rJAGSModel2<-"
-data{
-  for(j in 1:p){
-    meanX[j]<-mean(x[,j])
-    sdX[j]<-sd(x[,j])
-    for(i in 1:n){
-      scaledX[i,j]<-(x[i,j]-meanX[j])/sdX[j]
-    }
-  }
-}
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      explambda[r,i]<-exp(scaledBeta0[r]+sum(scaledBeta[r,1:p]*scaledX[i,1:p]))
+      explambda[r,i]<-exp(Beta0[r]+sum(Beta[r,1:p]*X[i,1:p]))
     }
     y[i]~dcat(explambda[1:nGrps,i])
   }
-  scaledBeta0[1]<-0
+  Beta0[1]<-0
   for(j in 1:p){
-    scaledBeta[1,j]<-0
+    Beta[1,j]<-0
   }
   for(r in 2:nGrps){
-    scaledBeta0[r]~dnorm(0,0.01)
+    Beta0[r]~dnorm(0,0.01)
     for(j in 1:p){
-      scaledBeta[r,j]~dnorm(0,.01)
+      Beta[r,j]~dnorm(0,.01)
     }
-  }
-  for(r in 1:nGrps){
-    beta[r,1:p]<-scaledBeta[r,1:p]/sdX[1:p]
-    beta0[r]<-scaledBeta0[r]-sum(scaledBeta[r,1:p]*meanX[1:p]/sdX[1:p])
   }
 }"
 df2bT0<-df2b %>% filter(timept=="T0" & group!="Indeterminate")
 df2bT0$group<-factor(df2bT0$group,levels=c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
 y<-as.numeric(as.factor(df2bT0$group))
-x<-df2bT0[,names(df2bT0)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")]
-p<-dim(x)[2]
-n<-dim(x)[1]
+X<-scale(df2bT0[,
+      names(df2bT0)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")])
+p<-dim(X)[2]
+n<-dim(X)[1]
 nGrps<-length(unique(y))
 model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                         data=list(y=y,x=x,p=p,n=n,nGrps=nGrps),
+                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
                          n.chains=1)
 
 update(model,10000); # Burnin for 10000 samples
-samp<-rjags::coda.samples(model,
-                          variable.names=c("beta0","beta","scaledBeta0","scaledBeta"),
+samp<-rjags::coda.samples(model,variable.names=c("Beta0","Beta"),
                           n.iter=20000)
 
 samp<-as.matrix(samp[[1]])
-acf(samp[,"beta[3,1]"][1:10000])
-plot(1:10000,samp[,"beta[2,1]"][1:10000],type="l")
+acf(samp[,"Beta[3,1]"][1:10000])
+plot(1:10000,samp[,"Beta[3,1]"][1:10000],type="l")
+
+############ T0 Bayesian model selection ############
+rJAGSModel3<-"
+model{
+  for(i in 1:n){
+    for(r in 1:nGrps){
+      explambda[r,i]<-exp(Beta0[r]+sum(Beta[r,1:p]*X[i,1:p]))
+    }
+    # Likelihood:
+    y[i]~dcat(explambda[1:nGrps,i])
+  }
+  
+  # Priors:
+  Beta0[1]<-0
+  for(j in 1:p){
+    Beta[1,j]<-0
+  }
+  for(r in 2:nGrps){
+    Beta0[r]~dnorm(0,0.01)
+    for(j in 1:p){
+      gamma[r,j] ~ dnorm(0,tau)
+      delta[r,j] ~ dbern(prob) 
+      Beta[r,j]  <- gamma[r,j]*delta[r,j]
+    }
+  }
+  prob~dbeta(5,5)
+  tau~dgamma(.1,.1)
+}"
+model<-rjags::jags.model(file=textConnection(rJAGSModel3),
+                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
+                         n.chains=1)
+update(model,10000); # Burnin for 10000 samples
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
