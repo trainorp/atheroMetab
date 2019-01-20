@@ -381,8 +381,15 @@ chainDF$group[chainDF$i==3]<-"sCAD"
 # Add annotation data:
 chainDF<-chainDF %>% left_join(metabKey)
 
-# Summarize:
-chainParamSum<-chainDF %>% group_by(parameter,metabID,Metabolite) %>% summarize(mean=mean(value))
+############ Variable selection analysis ############
+# Generate parameter summary:
+chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group) %>% 
+  summarize(mean=mean(value))
+
+cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(mean)
+cpsTemp$Metabolite<-factor(cpsTemp$Metabolite,levels=cpsTemp$Metabolite)
+ggplot(cpsTemp,aes(x=Metabolite,y=mean))+
+  geom_point()+theme_bw()+coord_flip()
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
