@@ -273,18 +273,18 @@ rJAGSModel2<-"
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      explambda[r,i]<-exp(Beta0[r]+sum(Beta[r,1:p]*X[i,1:p]))
+      pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
     }
-    y[i]~dcat(explambda[1:nGrps,i])
+    y[i]~dcat(pi[1:nGrps,i])
   }
-  Beta0[1]<-0
+  beta0[1]<-0
   for(j in 1:p){
-    Beta[1,j]<-0
+    beta[1,j]<-0
   }
   for(r in 2:nGrps){
-    Beta0[r]~dnorm(0,0.01)
+    beta0[r]~dnorm(0,0.01)
     for(j in 1:p){
-      Beta[r,j]~dnorm(0,.01)
+      beta[r,j]~dnorm(0,.01)
     }
   }
 }"
@@ -300,45 +300,76 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel2),
                          data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
                          n.chains=1)
 
+set.seed(333)
 update(model,10000); # Burnin for 10000 samples
-samp<-rjags::coda.samples(model,variable.names=c("Beta0","Beta"),
-                          n.iter=20000)
+set.seed(3333)
+samp<-rjags::coda.samples(model,variable.names=c("beta0","beta"),
+                          n.iter=20000,thin=10)
 
 samp<-as.matrix(samp[[1]])
-acf(samp[,"Beta[3,1]"][1:10000])
-plot(1:10000,samp[,"Beta[3,1]"][1:10000],type="l")
+acf(samp[,"beta[3,1]"][1:1000])
+plot(1:1000,samp[,"beta[3,1]"][1:1000],type="l")
 
 ############ T0 Bayesian model selection ############
 rJAGSModel3<-"
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      explambda[r,i]<-exp(Beta0[r]+sum(Beta[r,1:p]*X[i,1:p]))
+      pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
     }
     # Likelihood:
-    y[i]~dcat(explambda[1:nGrps,i])
+    y[i]~dcat(pi[1:nGrps,i])
   }
   
   # Priors:
-  Beta0[1]<-0
+  beta0[1]<-0
   for(j in 1:p){
-    Beta[1,j]<-0
+    beta[1,j]<-0
   }
   for(r in 2:nGrps){
-    Beta0[r]~dnorm(0,0.01)
+    beta0[r]~dnorm(0,0.01)
     for(j in 1:p){
       gamma[r,j] ~ dnorm(0,tau)
       delta[r,j] ~ dbern(prob) 
-      Beta[r,j]  <- gamma[r,j]*delta[r,j]
+      beta[r,j]  <- gamma[r,j]*delta[r,j]
     }
   }
-  prob~dbeta(5,5)
+  prob~dbeta(5,100)
   tau~dgamma(.1,.1)
 }"
+
+X<-scale(df2bT0[,grepl("m\\d",names(df2bT0))])
+p<-dim(X)[2]
+n<-dim(X)[1]
+
+# Model definition:
 model<-rjags::jags.model(file=textConnection(rJAGSModel3),
                          data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
                          n.chains=1)
-update(model,10000); # Burnin for 10000 samples
+# Burn in
+set.seed(3)
+update(model,10000)
+
+# MCMC chains:
+set.seed(33)
+samp<-rjags::coda.samples(model,variable.names=c("prob","delta","beta0","beta"),
+                          n.iter=20000,thin=10)
+chainMatrix<-as.matrix(samp[[1]])
+
+# ACF:
+acf(chainMatrix[,"beta[3,1]"][1:1000],na.action=na.omit)
+
+# Wide to long:
+chainDF<-as.data.frame(chainMatrix) %>% gather(key="parameter")
+
+# Add annotation data:
+chainDF$paramType<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,1]
+chainDF$i<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,2]
+chainDF$j<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,3])
+chainDF$metabID<-paste0("m",chainDF$j)
+chainDF<-chainDF %>% left_join(metabKey)
+
+chainParamSum<-chainDF %>% group_by(parameter,metabID,Metabolite) %>% summarize(mean=mean(value))
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
