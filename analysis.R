@@ -351,12 +351,12 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel3),
                          n.chains=1)
 # Burn in
 set.seed(3)
-update(model,1000)
+update(model,2000)
 
 # MCMC chains:
 set.seed(33)
 samp<-rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","beta0","beta"),
-                          n.iter=2000,thin=10)
+                          n.iter=10000,thin=10)
 chainMatrix<-as.matrix(samp[[1]])
 
 # ACF:
@@ -369,12 +369,14 @@ chainDF<-as.data.frame(chainMatrix) %>% gather(key="parameter")
 chainDF$paramType<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,1]
 chainDFHigher<-chainDF[chainDF$paramType %in% c("nVarsInc","prob"),]
 chainDF<-chainDF[!chainDF$paramType %in% c("nVarsInc","prob"),]
-chainDF$i<-gsub("\\[","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,2])
+chainDF$i<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,2])
 chainDF$j<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,3])
 chainDF$metabID<-paste0("m",chainDF$j)
 
 # Filter out un-neaded due to level coding:
-chainDF<-chainDF[!(chainDF$paramType=="beta" & chainDF$i==1),]
+chainDF<-chainDF[!(chainDF$paramType=="beta" & chainDF$i=="1"),]
+chainDF$group<-"Non-Thrombotic MI"
+chainDF$group[chainDF$i==3]<-"sCAD"
 
 # Add annotation data:
 chainDF<-chainDF %>% left_join(metabKey)
