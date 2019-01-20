@@ -301,7 +301,7 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel2),
                          n.chains=1)
 
 set.seed(333)
-update(model,10000); # Burnin for 10000 samples
+update(model,10000) # Burnin for 10000 samples
 set.seed(3333)
 samp<-rjags::coda.samples(model,variable.names=c("beta0","beta"),
                           n.iter=20000,thin=10)
@@ -350,6 +350,7 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel3),
                          data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
                          n.chains=1)
 # Burn in
+ptm<-proc.time()
 set.seed(3)
 update(model,2000)
 
@@ -357,6 +358,7 @@ update(model,2000)
 set.seed(33)
 samp<-rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","beta0","beta"),
                           n.iter=10000,thin=10)
+proc.time()-ptm # 734 seconds for 2000 burn in, 10000 iterations (1000 with thin)
 chainMatrix<-as.matrix(samp[[1]])
 
 # ACF:
@@ -388,8 +390,11 @@ chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group
 
 cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(mean)
 cpsTemp$Metabolite<-factor(cpsTemp$Metabolite,levels=cpsTemp$Metabolite)
+
+png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
 ggplot(cpsTemp,aes(x=Metabolite,y=mean))+
-  geom_point()+theme_bw()+coord_flip()
+  geom_point()+ ylab("Posterior Mean") + theme_bw() + coord_flip() 
+dev.off()
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
