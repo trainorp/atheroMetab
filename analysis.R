@@ -4,7 +4,9 @@ options(stringsAsFactors=FALSE,scipen=900)
 library(pillar)
 library(tidyverse)
 
-setwd("~/gdrive/AthroMetab/WCMC")
+# setwd("~/gdrive/AthroMetab/WCMC")
+setwd("~/atheroMetab")
+
 ## End always run
 
 # Import WCMC data:
