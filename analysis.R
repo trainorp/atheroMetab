@@ -4,7 +4,7 @@ options(stringsAsFactors=FALSE,scipen=900)
 library(pillar)
 library(tidyverse)
 
-# setwd("~/gdrive/AthroMetab/WCMC")
+setwd("~/gdrive/AthroMetab/WCMC")
 setwd("~/atheroMetab")
 
 ## End always run
@@ -347,20 +347,31 @@ X<-scale(df2bT0[,grepl("m\\d",names(df2bT0))])
 p<-dim(X)[2]
 n<-dim(X)[1]
 
-# Model definition:
-model<-rjags::jags.model(file=textConnection(rJAGSModel3),
-                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
-                         n.chains=1)
-# Burn in
-ptm<-proc.time()
-set.seed(3)
-update(model,2000)
+# Wrapper function for parallel:
+parWrapper<-function(seedIter){
+  # Model definition:
+  model<-rjags::jags.model(file=textConnection(rJAGSModel3),
+             inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
+             data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=2000)
+  rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","beta0","beta"),
+                      n.iter=20000,thin=10)
+}
 
-# MCMC chains:
-set.seed(33)
-samp<-rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","beta0","beta"),
-                          n.iter=10000,thin=10)
-proc.time()-ptm # 734 seconds for 2000 burn in, 10000 iterations (1000 with thin)
+# Create the cluster and export needed variables/data:
+nChains<-4
+cl<-parallel::makeCluster(nChains)
+parallel::clusterExport(cl,list("y","X","p","n","nGrps","rJAGSModel3"))
+
+# Do the distributed MCMC sampling:
+ptm<-proc.time()
+samp<-parallel::clusterApply(cl,1:nChains,parWrapper)
+proc.time()-ptm
+
+# Save result:
+save.image("working_20190121.RData")
+
+# Make chain matricies
+samp<-lapply(samp,function(x) x[[1]])
 chainMatrix<-as.matrix(samp[[1]])
 
 # ACF:
