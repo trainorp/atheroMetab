@@ -369,16 +369,32 @@ proc.time()-ptm
 
 # Save result:
 save.image("working_20190121.RData")
+load("working_20190121.RData")
 
 # Make chain matricies
-samp<-lapply(samp,function(x) x[[1]])
-chainMatrix<-as.matrix(samp[[1]])
-
-# ACF:
-acf(chainMatrix[,"beta[3,1]"][1:1000],na.action=na.omit)
+samps<-lapply(samp,function(x) x[[1]])
+chainMatrix1<-as.matrix(samps[[1]])
 
 # Wide to long:
-chainDF<-as.data.frame(chainMatrix) %>% gather(key="parameter")
+chainDF<-data.frame()
+for(i in 1:nChains){
+  chainDFTemp<-as.data.frame(as.matrix(samps[[i]])) %>% gather(key="parameter")
+  chainDFTemp$chain<-i
+  chainDFTemp$iter<-1:nrow(as.matrix(samps[[i]]))
+  chainDF<-rbind(chainDF,chainDFTemp)
+}
+chainDF$chain<-factor(chainDF$chain)
+
+# Plot some chains:
+ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
+       aes(x=iter,y=value,color=chain)) + geom_line() + 
+  theme_bw() + xlim(500,1000) + ylim(-.1,1.2)
+ggplot(chainDF %>% filter(metabID %in% c("m21","m33") & paramType=="beta" & group=="Non-Thrombotic MI"),
+       aes(x=value)) + geom_histogram(bins=40,color="black",fill="grey60") + 
+  facet_wrap(~metabID,scales="free_x") + theme_bw()
+
+# ACF:
+acf(chainMatrix1[,"beta[3,1]"][1:1000],na.action=na.omit)
 
 # Process MCMC samples:
 chainDF$paramType<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,1]
