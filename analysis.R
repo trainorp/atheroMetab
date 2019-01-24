@@ -316,15 +316,16 @@ parWrapper<-function(seedIter){
   model<-rjags::jags.model(file=textConnection(rJAGSModel3),
              inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
              data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
-  tryCatch({
+  codaSamples<-tryCatch({
       codaSamples<-rjags::coda.samples(model,
            variable.names=c("prob","nVarsInc","delta","tau","SD","beta0","beta"),
            n.iter=50000,thin=10)
-    }, error=function(e){
+    },error=function(e){
       codaSamples<-e
+      return(codaSamples)
     }
   )
-  codaSamples
+  codaSamples[[1]]
 }
 
 # Create the cluster and export needed variables/data:
