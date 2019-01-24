@@ -56,11 +56,11 @@ parWrapper<-function(seedIter){
              inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
              data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
   rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","tau","SD","beta0","beta"),
-                      n.iter=20000,thin=10)
+                      n.iter=100000,thin=10)
 }
 
 # Create the cluster and export needed variables/data:
-nChains<-4
+nChains<-6
 cl<-parallel::makeCluster(nChains)
 parallel::clusterExport(cl,list("y","X","p","n","nGrps","rJAGSModel3"))
 
