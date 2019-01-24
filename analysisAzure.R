@@ -53,10 +53,17 @@ n<-dim(X)[1]
 parWrapper<-function(seedIter){
   # Model definition:
   model<-rjags::jags.model(file=textConnection(rJAGSModel3),
-             inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
-             data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
-  rjags::coda.samples(model,variable.names=c("prob","nVarsInc","delta","tau","SD","beta0","beta"),
-                      n.iter=100000,thin=10)
+                           inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
+                           data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
+  tryCatch({
+    codaSamples<-rjags::coda.samples(model,
+                                     variable.names=c("prob","nVarsInc","delta","tau","SD","beta0","beta"),
+                                     n.iter=50000,thin=10)
+  }, error=function(e){
+    codaSamples<-e
+  }
+  )
+  codaSamples
 }
 
 # Create the cluster and export needed variables/data:
@@ -72,4 +79,3 @@ parallel::stopCluster(cl)
 
 # Save result:
 save.image("working_20190121.RData")
-# load("working_20190121.RData")
