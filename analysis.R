@@ -362,10 +362,18 @@ for(i in 1:nChains){
 }
 chainDF$chain<-factor(chainDF$chain)
 
+# Higher parameters:
+chainDFHigher<-data.frame()
+for(i in 1:nChains){
+  chainDFTemp<-as.data.frame(as.matrix(samps[[i]]))
+  chainDFTemp<-chainDFTemp[,colnames(chainDFTemp) %in% c("logdens","nVarsInc","prob","tau","SD")]
+  chainDFTemp$chain<-i
+  chainDFHigher<-rbind(chainDFHigher,chainDFTemp)
+}
+
 # Process MCMC samples:
 chainDF$paramType<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,1]
-chainDFHigher<-chainDF[chainDF$paramType %in% c("nVarsInc","prob"),]
-chainDF<-chainDF[!chainDF$paramType %in% c("nVarsInc","prob"),]
+chainDF<-chainDF[!chainDF$paramType %in% c("logdens","nVarsInc","prob"),]
 chainDF$i<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,2])
 chainDF$j<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,3])
 chainDF$metabID<-paste0("m",chainDF$j)
@@ -433,21 +441,21 @@ gridExtra::grid.arrange(p1,p2,p3,layout_matrix=lm)
 dev.off()
 
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-   theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m21"]) + ylim(0,5000) +
-  theme(plot.title = element_text(hjust = 0.5))
+           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
+   theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m21"]) + ylim(0,1.35) +
+  xlim(-15,2.5) + theme(plot.title = element_text(hjust = 0.5))
 p2<-ggplot(chainDF %>% filter(metabID=="m16" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m16"]) + ylim(0,5000) +
-  theme(plot.title = element_text(hjust = 0.5))
+           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m16"]) + ylim(0,1.35) +
+  xlim(-15,2.5) + theme(plot.title = element_text(hjust = 0.5))
 p3<-ggplot(chainDF %>% filter(metabID=="m32" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m32"]) + ylim(0,8000) +
-  theme(plot.title = element_text(hjust = 0.5))
+           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m32"]) + ylim(0,2.5) +
+  xlim(-7,7) + theme(plot.title = element_text(hjust = 0.5))
 p4<-ggplot(chainDF %>% filter(metabID=="m54" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m54"]) + ylim(0,8000) +
-  theme(plot.title = element_text(hjust = 0.5))
+           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m54"]) + ylim(0,3.5) +
+  xlim(-5,5) + theme(plot.title = element_text(hjust = 0.5))
 
 png(file="Plots/betaHistograms.png",height=7,width=8,res=300,units="in")
 gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
@@ -458,11 +466,19 @@ png(file="Plots/MCMCChainACF.png",height=5,width=6,res=300,units="in")
 acf(chainMatrix1[,"beta[3,21]"],na.action=na.omit)
 dev.off()
 
+# Likelihood:
+rf<-colorRampPalette(rev(RColorBrewer::brewer.pal(11,'Spectral')))
+hexbin::hexbinplot(logdens~SD,data=chainDFHigher,colramp=rf)
+hexbin::hexbinplot(logdens~nVarsInc,data=chainDFHigher,colramp=rf)
+
 # Generate parameter summary:
 chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group) %>% 
   summarize(mean=mean(value))
 
-cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(mean)
+cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(desc(mean))
+metabInclude<-cpsTemp$metabID[1:15]
+cpsTemp<-cpsTemp %>% arrange(mean)
+
 cpsTemp$Metabolite<-factor(cpsTemp$Metabolite,levels=cpsTemp$Metabolite)
 
 png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
@@ -477,39 +493,40 @@ model{
     for(r in 1:nGrps){
       pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
     }
+    # Likelihood:
     y[i]~dcat(pi[1:nGrps,i])
-    logdens[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
+    logdensi[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
   }
-  logdensSum<-sum(logdens)
+  logdens<-sum(logdensi)
+  
+  # Priors:
   beta0[1]<-0
   for(j in 1:p){
     beta[1,j]<-0
   }
   for(r in 2:nGrps){
     beta0[r]~dnorm(0,0.01)
-    for(j in 1:p){
-      beta[r,j]~dnorm(0,.01)
+  }
+  for(j in 1:p){
+    for(r in 2:nGrps){
+      beta[r,j] ~ dnorm(0,tau)
     }
   }
+  tau~dgamma(1,1)
+  SD<-sqrt(1/tau)
 }"
 
-X<-scale(df2bT0[,
-                names(df2bT0)%in%c("m10","m11","m12","m13","m21","m22","m26","m33","m45")])
+X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
 n<-dim(X)[1]
+
 model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),
-                         n.chains=1)
+                         inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=333),
+                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
 
-set.seed(333)
-update(model,1000) # Burnin for 10000 samples
-set.seed(3333)
-samp<-rjags::coda.samples(model,variable.names=c("beta0","beta","logdensSum"),
-                          n.iter=2000,thin=10)
-
-samp<-as.matrix(samp[[1]])
-acf(samp[,"beta[3,1]"][1:1000])
-plot(1:1000,samp[,"beta[3,1]"][1:1000],type="l")
+codaSamples<-rjags::coda.samples(model,
+       variable.names=c("logdens","tau","SD","beta0","beta"),
+       n.iter=10000,thin=10)
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
