@@ -340,11 +340,14 @@ proc.time()-ptm
 parallel::stopCluster(cl)
 
 # Save result:
-save.image("working_20190121.RData")
-# load("working_20190121.RData")
+# save.image("working_20190121.RData")
+load("working_20190121.RData")
 
 # Make chain matricies
-samps<-lapply(samp,function(x) x[[1]])
+samp<-samp[-5]
+nChains<-nChains-1
+# samps<-lapply(samp,function(x) x[[1]])
+samps<-samp
 chainMatrix1<-as.matrix(samps[[1]])
 
 # Wide to long:
@@ -376,7 +379,7 @@ chainDF<-chainDF %>% left_join(metabKey)
 ############ Variable selection analysis ############
 # Plot prior distributions:
 priorProb<-data.frame(x=rbeta(1000000,5,100))
-priorTau<-data.frame(x=rgamma(1000000,.1,.1))
+priorTau<-data.frame(x=rgamma(1000000,1,1))
 priorTau$variance<-1/priorTau$x
 priorTau$sd<-sqrt(priorTau$var)
 priorTau$gamma<-sapply(priorTau$sd,function(x) rnorm(1,0,x))
@@ -401,7 +404,7 @@ p3<-ggplot(priorTau,aes(x=log(variance),y=..density..)) +
 
 p4<-ggplot(priorTau,aes(x=gamma,y=..density..)) + 
   geom_histogram(fill="grey60",color="black",bins=50) + 
-  theme_bw() + xlab("Value") + ylab("Density") + xlim(-20,20) +
+  theme_bw() + xlab("Value") + ylab("Density") + xlim(-15,15) +
   ggtitle(expression(paste("Prior for ",gamma))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
@@ -410,10 +413,21 @@ gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
 dev.off()
 
 # Plot some chains:
-png(file="Plots/cortisolBetaChain.png",height=4,width=6,res=300,units="in")
-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-       aes(x=iter,y=value,color=chain)) + geom_line() + 
-  theme_bw() + xlim(600,800) + ylim(-20,1)
+p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
+           aes(x=iter,y=value,color=chain)) + geom_line() + 
+  theme_bw() + xlim(1000,5000) + ylim(-16,1) + xlab("Iteration") + ylab(expression(beta))
+p2<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
+           aes(x=iter,y=value,color=chain)) + geom_line() + 
+  theme_bw() + xlim(4900,5000) + ylim(-12,1) + xlab("Iteration") + ylab(expression(beta))
+p3<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
+           aes(x=value,fill=chain,y=..density..)) + 
+  geom_histogram(binwidth=.35,alpha=0.5,position="identity") + xlab(expression(beta)) +
+  ylab("Density") + xlim(-12,3) + theme_bw()
+
+png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
+lm<-rbind(c(1,1,1,1),
+          c(2,2,3,3))
+gridExtra::grid.arrange(p1,p2,p3,layout_matrix=lm)
 dev.off()
 
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
@@ -462,7 +476,9 @@ model{
       pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
     }
     y[i]~dcat(pi[1:nGrps,i])
+    logdens[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
   }
+  logdensSum<-sum(logdens)
   beta0[1]<-0
   for(j in 1:p){
     beta[1,j]<-0
@@ -484,10 +500,10 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel2),
                          n.chains=1)
 
 set.seed(333)
-update(model,10000) # Burnin for 10000 samples
+update(model,1000) # Burnin for 10000 samples
 set.seed(3333)
-samp<-rjags::coda.samples(model,variable.names=c("beta0","beta"),
-                          n.iter=20000,thin=10)
+samp<-rjags::coda.samples(model,variable.names=c("beta0","beta","logdensSum"),
+                          n.iter=2000,thin=10)
 
 samp<-as.matrix(samp[[1]])
 acf(samp[,"beta[3,1]"][1:1000])
