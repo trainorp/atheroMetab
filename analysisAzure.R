@@ -18,7 +18,9 @@ model{
     }
     # Likelihood:
     y[i]~dcat(pi[1:nGrps,i])
+    logdensi[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
   }
+  logdens<-sum(logdensi)
   
   # Priors:
   beta0[1]<-0
@@ -57,7 +59,7 @@ parWrapper<-function(seedIter){
                            data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
   codaSamples<-tryCatch({
     codaSamples<-rjags::coda.samples(model,
-                                     variable.names=c("prob","nVarsInc","delta","tau","SD","beta0","beta"),
+                                     variable.names=c("logdens","prob","nVarsInc","delta","tau","SD","beta0","beta"),
                                      n.iter=50000,thin=10)
   },error=function(e){
     codaSamples<-e
