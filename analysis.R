@@ -5,7 +5,7 @@ library(pillar)
 library(tidyverse)
 
 setwd("~/gdrive/AthroMetab/WCMC")
-setwd("~/atheroMetab")
+# setwd("~/atheroMetab")
 
 ## End always run
 
@@ -520,21 +520,24 @@ X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
 n<-dim(X)[1]
 
+set.seed(33333)
 model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                         inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=333),
                          data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
 
 codaSamples<-rjags::coda.samples(model,
        variable.names=c("logdens","tau","SD","beta0","beta"),
        n.iter=10000,thin=10)
 
+# Make into one MCMC chain:
+codaSamples<-do.call("rbind",codaSamples)
+
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
-groupExp<-matrix(NA,nrow=nrow(x),ncol=3)
+groupExp<-matrix(NA,nrow=nrow(df2bT0),ncol=3)
 colnames(groupExp)<-levels(as.factor(df2bT0$group))
 for(g in 1:3){
   betaVars<-paste0("beta[",g,",",1:9,"]")
-  sampBeta<-samp[,match(betaVars,colnames(samp))]
+  codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
   sampBeta0<-samp[,match(paste0("beta0[",g,"]"),colnames(samp))]
   groupExp[,g]<-exp(sampBeta0[1] + as.matrix(x) %*% sampBeta[1,])
 }
