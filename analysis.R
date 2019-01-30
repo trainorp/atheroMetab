@@ -533,14 +533,15 @@ codaSamples<-do.call("rbind",codaSamples)
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
-groupExp<-matrix(NA,nrow=nrow(df2bT0),ncol=3)
+groupExp<-matrix(0,nrow=nrow(df2bT0),ncol=3)
 colnames(groupExp)<-levels(as.factor(df2bT0$group))
-for(g in 1:3){
-  betaVars<-paste0("beta[",g,",",1:9,"]")
+for(g in 2:3){
+  betaVars<-paste0("beta[",g,",",1:p,"]")
   codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
-  sampBeta0<-samp[,match(paste0("beta0[",g,"]"),colnames(samp))]
-  groupExp[,g]<-exp(sampBeta0[1] + as.matrix(x) %*% sampBeta[1,])
+  codaSampBeta0<-codaSamples[,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
+  groupExp[,g]<-exp(codaSampBeta0[1] + X %*% codaSampBeta[1,])
 }
+groupExp[,1]<-1
 apply(groupExp,1,sum)
 groupProbs<-groupExp/apply(groupExp,1,sum)
 groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
