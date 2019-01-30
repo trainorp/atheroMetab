@@ -533,18 +533,43 @@ codaSamples<-do.call("rbind",codaSamples)
 
 ############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
-groupExp<-matrix(0,nrow=nrow(df2bT0),ncol=3)
-colnames(groupExp)<-levels(as.factor(df2bT0$group))
-for(g in 2:3){
-  betaVars<-paste0("beta[",g,",",1:p,"]")
-  codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
-  codaSampBeta0<-codaSamples[,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
-  groupExp[,g]<-exp(codaSampBeta0[1] + X %*% codaSampBeta[1,])
+groupExpList<-groupProbsList<-list()
+for(i in 1:nrow(codaSamples)){
+  groupExp<-matrix(0,nrow=nrow(df2bT0),ncol=3)
+  colnames(groupExp)<-levels(as.factor(df2bT0$group))
+  for(g in 2:3){
+    betaVars<-paste0("beta[",g,",",1:p,"]")
+    codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
+    codaSampBeta0<-codaSamples[,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
+    groupExp[,g]<-exp(codaSampBeta0[1] + X %*% codaSampBeta[i,])
+  }
+  groupExp[,1]<-1
+  groupProbs<-groupExp/apply(groupExp,1,sum)
+  groupProbs<-data.frame(ptid=df2bT0$ptid,groupProbs)
+  
+  # Add to lists:
+  groupExp<-as.data.frame(groupExp)
+  groupExp$iter<-i
+  groupProbs$iter<-i
+  groupExpList[[i]]<-groupExp
+  groupProbsList[[i]]<-groupProbs
 }
-groupExp[,1]<-1
-apply(groupExp,1,sum)
-groupProbs<-groupExp/apply(groupExp,1,sum)
-groupProbs<-cbind(ptid=df2bT0$ptid,groupProbs)
+groupExp<-do.call("rbind",groupExpList)
+groupProbs<-do.call("rbind",groupProbsList)
+
+groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
+
+ggplot(groupProbsL %>% filter(ptid=="2003"),aes(x=Probability,y=..density..,fill=Group)) + 
+  geom_histogram(binwidth=.04,alpha=0.5,position="identity",color="black") + theme_bw()
+ggplot(groupProbsL %>% filter(ptid=="2010"),aes(x=Probability,y=..density..,fill=Group)) + 
+  geom_histogram(binwidth=.04,alpha=0.5,position="identity",color="black") + theme_bw()
+
+ggplot(groupProbsL %>% filter(ptid=="2003"),aes(x=Probability,y=..density..)) + 
+  geom_histogram(binwidth=.04,alpha=0.5,position="identity",color="black") + 
+  facet_grid(~Group) + theme_bw()
+ggplot(groupProbsL %>% filter(ptid=="2010"),aes(x=Probability,y=..density..)) + 
+  geom_histogram(binwidth=.04,alpha=0.5,position="identity",color="black") + 
+  facet_grid(~Group) + theme_bw()
 
 ############ GLM-net variable selection ############
 df2bT0<-oxPLDF %>% select(ptid,tropT0) %>% right_join(df2bT0)
