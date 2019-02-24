@@ -518,34 +518,54 @@ model{
 
 X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
-n<-dim(X)[1]
+save.image(file="working_20190223.RData")
 
-set.seed(33333)
-model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+load(file="working_20190223.RData")
 
-codaSamples<-rjags::coda.samples(model,
-       variable.names=c("logdens","tau","SD","beta0","beta"),
-       n.iter=10000,thin=10)
+# Sample for cross-validation
+library(doParallel)
+cl<-makeCluster(3)
+registerDoParallel(cl)
+ptm<-proc.time()
+codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
+  X2<-X[-i,]
+  n<-dim(X2)[1]
+  set.seed(33333)
+  model<-rjags::jags.model(file=textConnection(rJAGSModel2),
+                           data=list(y=y,X=X2,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+  
+  codaSamples<-rjags::coda.samples(model,
+                                   variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+  
+  # Make into one MCMC chain:
+  codaSamples<-as.data.frame(do.call("rbind",codaSamples))
+  codaSamples$lo<-i
+  codaSamples
+}
+proc.time()-ptm
+stopCluster(cl)
 
-# Make into one MCMC chain:
+save.image(file="working_20190223b.RData")
+load(file="working_20190223b.RData")
+
+############ T0 Bayesian model prediction from LOO-CV ############
+# Combind sets of chains:
 codaSamples<-do.call("rbind",codaSamples)
 
-############ T0 Bayesian model prediction ############
 # Calculate group probabilities for one iteration of Gibbs sampler
 groupExpList<-groupProbsList<-list()
 for(i in 1:nrow(codaSamples)){
-  groupExp<-matrix(0,nrow=nrow(df2bT0),ncol=3)
+  groupExp<-matrix(0,nrow=1,ncol=3)
   colnames(groupExp)<-levels(as.factor(df2bT0$group))
   for(g in 2:3){
     betaVars<-paste0("beta[",g,",",1:p,"]")
-    codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
-    codaSampBeta0<-codaSamples[,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
-    groupExp[,g]<-exp(codaSampBeta0[1] + X %*% codaSampBeta[i,])
+    codaSampBeta<-codaSamples[i,match(betaVars,colnames(codaSamples))]
+    codaSampBeta0<-codaSamples[i,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
+    groupExp[1,g]<-exp(codaSampBeta0 + X[codaSamples$lo[i],] %*% t(codaSampBeta))
   }
   groupExp[,1]<-1
   groupProbs<-groupExp/apply(groupExp,1,sum)
-  groupProbs<-data.frame(ptid=df2bT0$ptid,groupProbs)
+  groupProbs<-data.frame(ptid=df2bT0$ptid[codaSamples$lo[i]],groupProbs)
   
   # Add to lists:
   groupExp<-as.data.frame(groupExp)
@@ -553,10 +573,12 @@ for(i in 1:nrow(codaSamples)){
   groupProbs$iter<-i
   groupExpList[[i]]<-groupExp
   groupProbsList[[i]]<-groupProbs
+  print(i)
 }
 groupExp<-do.call("rbind",groupExpList)
 groupProbs<-do.call("rbind",groupProbsList)
 
+# Plots
 groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
 
 ggplot(groupProbsL %>% filter(ptid=="2003"),aes(x=Probability,y=..density..,fill=Group)) + 
