@@ -520,6 +520,8 @@ X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
 save.image(file="working_20190223.RData")
 
+load(file="working_20190223.RData")
+
 # Sample for cross-validation
 library(doParallel)
 cl<-makeCluster(3)
@@ -543,21 +545,27 @@ codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
 proc.time()-ptm
 stopCluster(cl)
 
-############ T0 Bayesian model prediction ############
+save.image(file="working_20190223b.RData")
+load(file="working_20190223b.RData")
+
+############ T0 Bayesian model prediction from LOO-CV ############
+# Combind sets of chains:
+codaSamples<-do.call("rbind",codaSamples)
+
 # Calculate group probabilities for one iteration of Gibbs sampler
 groupExpList<-groupProbsList<-list()
 for(i in 1:nrow(codaSamples)){
-  groupExp<-matrix(0,nrow=nrow(df2bT0),ncol=3)
+  groupExp<-matrix(0,nrow=1,ncol=3)
   colnames(groupExp)<-levels(as.factor(df2bT0$group))
   for(g in 2:3){
     betaVars<-paste0("beta[",g,",",1:p,"]")
-    codaSampBeta<-codaSamples[,match(betaVars,colnames(codaSamples))]
-    codaSampBeta0<-codaSamples[,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
-    groupExp[,g]<-exp(codaSampBeta0[1] + X %*% codaSampBeta[i,])
+    codaSampBeta<-codaSamples[i,match(betaVars,colnames(codaSamples))]
+    codaSampBeta0<-codaSamples[i,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
+    groupExp[1,g]<-exp(codaSampBeta0 + X[codaSamples$lo[i],] %*% t(codaSampBeta))
   }
   groupExp[,1]<-1
   groupProbs<-groupExp/apply(groupExp,1,sum)
-  groupProbs<-data.frame(ptid=df2bT0$ptid,groupProbs)
+  groupProbs<-data.frame(ptid=df2bT0$ptid[codaSamples$lo[i]],groupProbs)
   
   # Add to lists:
   groupExp<-as.data.frame(groupExp)
@@ -565,10 +573,12 @@ for(i in 1:nrow(codaSamples)){
   groupProbs$iter<-i
   groupExpList[[i]]<-groupExp
   groupProbsList[[i]]<-groupProbs
+  print(i)
 }
 groupExp<-do.call("rbind",groupExpList)
 groupProbs<-do.call("rbind",groupProbsList)
 
+# Plots
 groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
 
 ggplot(groupProbsL %>% filter(ptid=="2003"),aes(x=Probability,y=..density..,fill=Group)) + 
