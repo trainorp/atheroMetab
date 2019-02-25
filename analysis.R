@@ -578,6 +578,18 @@ for(i in 1:nrow(codaSamples)){
 groupExp<-do.call("rbind",groupExpList)
 groupProbs<-do.call("rbind",groupProbsList)
 
+# Multinomial loss:
+groupProbs<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbs)
+groupProbs$ind<-match(gsub("-",".",gsub(" ",".",groupProbs$group)),names(groupProbs))
+groupProbs$multLoss<-NA
+for(i in 1:nrow(groupProbs)){
+  groupProbs$multLoss[i]<-groupProbs[i,groupProbs$ind[i]]
+  if(i %% 2880==0){
+    print(i/nrow(groupProbs)*100)
+  }
+}
+groupProbs$multLoss<-(-log(groupProbs$multLoss))
+
 # Plots
 groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
 
