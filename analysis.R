@@ -552,7 +552,7 @@ load(file="working_20190223b.RData")
 # Combind sets of chains:
 codaSamples<-do.call("rbind",codaSamples)
 
-# Calculate group probabilities for one iteration of Gibbs sampler
+# Calculate group probabilities from LOO-CV posteriors
 groupExpList<-groupProbsList<-list()
 for(i in 1:nrow(codaSamples)){
   groupExp<-matrix(0,nrow=1,ncol=3)
@@ -577,6 +577,18 @@ for(i in 1:nrow(codaSamples)){
 }
 groupExp<-do.call("rbind",groupExpList)
 groupProbs<-do.call("rbind",groupProbsList)
+
+# Multinomial loss:
+groupProbs<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbs)
+groupProbs$ind<-match(gsub("-",".",gsub(" ",".",groupProbs$group)),names(groupProbs))
+groupProbs$multLoss<-NA
+for(i in 1:nrow(groupProbs)){
+  groupProbs$multLoss[i]<-groupProbs[i,groupProbs$ind[i]]
+  if(i %% 2880==0){
+    print(i/nrow(groupProbs)*100)
+  }
+}
+groupProbs$multLoss<-(-log(groupProbs$multLoss))
 
 # Plots
 groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
