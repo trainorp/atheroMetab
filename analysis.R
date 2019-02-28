@@ -552,7 +552,7 @@ load(file="working_20190223b.RData")
 # Combind sets of chains:
 codaSamples<-do.call("rbind",codaSamples)
 
-# Calculate group probabilities for one iteration of Gibbs sampler
+# Calculate group probabilities from LOO-CV posteriors
 groupExpList<-groupProbsList<-list()
 for(i in 1:nrow(codaSamples)){
   groupExp<-matrix(0,nrow=1,ncol=3)
