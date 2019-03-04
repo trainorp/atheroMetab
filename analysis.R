@@ -545,8 +545,20 @@ codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
 proc.time()-ptm
 stopCluster(cl)
 
+# Not LOO model:
+n<-dim(X)[1]
+set.seed(3333333)
+model<-rjags::jags.model(file=textConnection(rJAGSModel2),
+                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+codaSamplesOneModel<-rjags::coda.samples(model,
+                           variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+codaSamplesOneModel<-as.data.frame(do.call("rbind",codaSamplesOneModel))
+
 save.image(file="working_20190223b.RData")
 load(file="working_20190223b.RData")
+
+############ Analysis of one set of MCMC chains ############
+codaSamples
 
 ############ T0 Bayesian model prediction from LOO-CV ############
 # Combind sets of chains:
@@ -588,10 +600,23 @@ for(i in 1:nrow(groupProbs)){
     print(i/nrow(groupProbs)*100)
   }
 }
+groupProbs$multLoss<-unlist(groupProbs$multLoss)
 groupProbs$multLoss<-(-log(groupProbs$multLoss))
+save.image(file="working_20190223c.RData")
+load(file="working_20190223c.RData")
+
+# CV-estimated confusion matrix:
+groupProbsSum<-groupProbs %>% select(ptid,Thrombotic.MI,Non.Thrombotic.MI,sCAD) %>% group_by(ptid) %>% 
+  summarize(Thrombotic.MI=median(Thrombotic.MI),Non.Thrombotic.MI=median(Non.Thrombotic.MI),
+            sCAD=median(sCAD))
+groupProbsSum$predGroup<-c("Thrombotic MI","Non-Thrombotic MI","sCAD")[apply(groupProbsSum[,
+                      c("Thrombotic.MI","Non.Thrombotic.MI","sCAD")],1,which.max)]
+groupProbsSum<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbsSum,by="ptid")
+xtabs(~group+predGroup,data=groupProbsSum)
 
 # Plots
-groupProbsL<-groupProbs %>% gather(key="Group",value="Probability",-iter,-ptid)
+groupProbsL<-groupProbs %>% select(-multLoss,-group,-ind,-predGroup) %>% 
+  gather(key="Group",value="Probability",-iter,-ptid)
 
 ggplot(groupProbsL %>% filter(ptid=="2003"),aes(x=Probability,y=..density..,fill=Group)) + 
   geom_histogram(binwidth=.04,alpha=0.5,position="identity",color="black") + theme_bw()
