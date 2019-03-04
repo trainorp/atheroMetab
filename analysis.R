@@ -418,9 +418,9 @@ p4<-ggplot(priorTau,aes(x=gamma,y=..density..)) +
   ggtitle(expression(paste("Prior for ",gamma))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
-png(file="Plots/priorDists.png",height=6,width=7,res=300,units="in")
+# png(file="Plots/priorDists.png",height=6,width=7,res=300,units="in")
 gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
-dev.off()
+# dev.off()
 
 # Plot some chains:
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
@@ -434,11 +434,11 @@ p3<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-T
   geom_histogram(binwidth=.35,alpha=0.5,position="identity") + xlab(expression(beta)) +
   ylab("Density") + xlim(-12,3) + theme_bw()
 
-png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
+# png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
 lm<-rbind(c(1,1,1,1),
           c(2,2,3,3))
 gridExtra::grid.arrange(p1,p2,p3,layout_matrix=lm)
-dev.off()
+# dev.off()
 
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
            aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
@@ -457,14 +457,14 @@ p4<-ggplot(chainDF %>% filter(metabID=="m54" & paramType=="beta" & group=="Non-T
   theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m54"]) + ylim(0,3.5) +
   xlim(-5,5) + theme(plot.title = element_text(hjust = 0.5))
 
-png(file="Plots/betaHistograms.png",height=7,width=8,res=300,units="in")
+# png(file="Plots/betaHistograms.png",height=7,width=8,res=300,units="in")
 gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
-dev.off()
+#dev.off()
 
 # ACF:
-png(file="Plots/MCMCChainACF.png",height=5,width=6,res=300,units="in")
+# png(file="Plots/MCMCChainACF.png",height=5,width=6,res=300,units="in")
 acf(chainMatrix1[,"beta[3,21]"],na.action=na.omit)
-dev.off()
+# dev.off()
 
 # Likelihood:
 rf<-colorRampPalette(rev(RColorBrewer::brewer.pal(11,'Spectral')))
@@ -476,17 +476,20 @@ chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group
   summarize(mean=mean(value))
 
 cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(desc(mean))
-metabInclude<-cpsTemp$metabID[1:15]
 cpsTemp<-cpsTemp %>% arrange(mean)
 
 cpsTemp$Metabolite<-factor(cpsTemp$Metabolite,levels=cpsTemp$Metabolite)
 
-png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
+# png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
 ggplot(cpsTemp,aes(x=Metabolite,y=mean))+
   geom_point()+ ylab(expression(paste("Posterior Mean of ",delta))) + theme_bw() + coord_flip() 
-dev.off()
+# dev.off()
 
 ############ T0 Bayesian model fitting ############
+save.image(file="working_20190223.RData")
+load(file="working_20190223.RData")
+
+metabInclude<-cpsTemp$metabID[1:25]
 rJAGSModel2<-"
 model{
   for(i in 1:n){
@@ -512,15 +515,12 @@ model{
       beta[r,j] ~ dnorm(0,tau)
     }
   }
-  tau~dgamma(1,1)
+  tau~dgamma(3,1)
   SD<-sqrt(1/tau)
 }"
 
 X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
-save.image(file="working_20190223.RData")
-
-load(file="working_20190223.RData")
 
 # Sample for cross-validation
 library(doParallel)
@@ -553,6 +553,12 @@ model<-rjags::jags.model(file=textConnection(rJAGSModel2),
 codaSamplesOneModel<-rjags::coda.samples(model,
                            variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
 codaSamplesOneModel<-as.data.frame(do.call("rbind",codaSamplesOneModel))
+
+codaSOMParamQuant<-data.frame()
+for(colName in colnames(codaSamplesOneModel)){
+  codaSOMParamQuant<-rbind(codaSOMParamQuant,t(as.matrix(quantile(codaSamplesOneModel[,colName],probs=seq(0,1,.1)))))
+}
+codaSOMParamQuant$param<-colnames(codaSamplesOneModel)
 
 save.image(file="working_20190223b.RData")
 load(file="working_20190223b.RData")
