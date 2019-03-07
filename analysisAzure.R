@@ -6,7 +6,7 @@ library(tidyverse)
 
 load(file="working_20190223.RData")
 
-metabInclude<-cpsTemp$metabID[1:25]
+metabInclude<-cpsTemp$metabID[1:15]
 rJAGSModel2<-"
 model{
   for(i in 1:n){
@@ -32,7 +32,7 @@ model{
       beta[r,j] ~ dnorm(0,tau)
     }
   }
-  tau~dgamma(3,1)
+  tau~dgamma(1,1)
   SD<-sqrt(1/tau)
 }"
 
@@ -41,7 +41,7 @@ p<-dim(X)[2]
 
 # Sample for cross-validation
 library(doParallel)
-cl<-makeCluster(3)
+cl<-makeCluster(4)
 registerDoParallel(cl)
 ptm<-proc.time()
 codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {

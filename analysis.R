@@ -564,7 +564,7 @@ save.image(file="working_20190223b.RData")
 load(file="working_20190223b.RData")
 
 ############ Analysis of one set of MCMC chains ############
-codaSamples
+# codaSamples
 
 ############ T0 Bayesian model prediction from LOO-CV ############
 # Combind sets of chains:
