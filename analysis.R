@@ -476,20 +476,19 @@ chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group
   summarize(mean=mean(value))
 
 cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(desc(mean))
-cpsTemp<-cpsTemp %>% arrange(mean)
-
-cpsTemp$Metabolite<-factor(cpsTemp$Metabolite,levels=cpsTemp$Metabolite)
+cpsTemp2<-cpsTemp %>% arrange(mean)
+cpsTemp2$Metabolite<-factor(cpsTemp2$Metabolite,levels=cpsTemp2$Metabolite)
 
 # png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
-ggplot(cpsTemp,aes(x=Metabolite,y=mean))+
+ggplot(cpsTemp2,aes(x=Metabolite,y=mean))+
   geom_point()+ ylab(expression(paste("Posterior Mean of ",delta))) + theme_bw() + coord_flip() 
 # dev.off()
 
-############ T0 Bayesian model fitting ############
 save.image(file="working_20190223.RData")
-load(file="working_20190223.RData")
 
-metabInclude<-cpsTemp$metabID[1:25]
+############ T0 Bayesian model fitting ############
+load(file="working_20190223.RData")
+metabInclude<-cpsTemp$metabID[1:15]
 rJAGSModel2<-"
 model{
   for(i in 1:n){
@@ -515,7 +514,7 @@ model{
       beta[r,j] ~ dnorm(0,tau)
     }
   }
-  tau~dgamma(3,1)
+  tau~dgamma(1,1)
   SD<-sqrt(1/tau)
 }"
 
@@ -524,7 +523,7 @@ p<-dim(X)[2]
 
 # Sample for cross-validation
 library(doParallel)
-cl<-makeCluster(3)
+cl<-makeCluster(4)
 registerDoParallel(cl)
 ptm<-proc.time()
 codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
@@ -545,6 +544,9 @@ codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
 proc.time()-ptm
 stopCluster(cl)
 
+save.image(file="working_20190223b.RData")
+load(file="working_20190223b.RData")
+
 # Not LOO model:
 n<-dim(X)[1]
 set.seed(3333333)
@@ -559,9 +561,6 @@ for(colName in colnames(codaSamplesOneModel)){
   codaSOMParamQuant<-rbind(codaSOMParamQuant,t(as.matrix(quantile(codaSamplesOneModel[,colName],probs=seq(0,1,.1)))))
 }
 codaSOMParamQuant$param<-colnames(codaSamplesOneModel)
-
-save.image(file="working_20190223b.RData")
-load(file="working_20190223b.RData")
 
 ############ Analysis of one set of MCMC chains ############
 # codaSamples
