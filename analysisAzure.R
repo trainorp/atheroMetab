@@ -32,12 +32,16 @@ model{
       beta[r,j] ~ dnorm(0,tau)
     }
   }
-  tau~dgamma(1,1)
+  tau~dgamma(2,1)
   SD<-sqrt(1/tau)
 }"
 
-X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
+tropT0<-oxPLDF %>% select(ptid,tropT0) %>% mutate(logTrop=log(tropT0+.0001)) %>% select(-tropT0)
+df2bT0<-df2bT0 %>% left_join(tropT0)
+X<-scale(df2bT0[,names(df2bT0) %in% c(metabInclude,"logTrop")])
+# X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
+cat("p is ",p,"\n")
 
 # Sample for cross-validation
 library(doParallel)
@@ -63,3 +67,65 @@ proc.time()-ptm
 stopCluster(cl)
 
 save.image(file="working_20190223b.RData")
+
+
+# Not LOO model:
+n<-dim(X)[1]
+set.seed(3333333)
+model<-rjags::jags.model(file=textConnection(rJAGSModel2),
+                         data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+codaSamplesOneModel<-rjags::coda.samples(model,
+                                         variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+codaSamplesOneModel<-as.data.frame(do.call("rbind",codaSamplesOneModel))
+
+codaSOMParamQuant<-data.frame()
+for(colName in colnames(codaSamplesOneModel)){
+  codaSOMParamQuant<-rbind(codaSOMParamQuant,t(as.matrix(quantile(codaSamplesOneModel[,colName],probs=seq(0,1,.1)))))
+}
+codaSOMParamQuant$param<-colnames(codaSamplesOneModel)
+
+############ T0 Bayesian model prediction from LOO-CV ############
+# Combind sets of chains:
+codaSamples<-do.call("rbind",codaSamples)
+
+# Calculate group probabilities from LOO-CV posteriors
+groupExpList<-groupProbsList<-list()
+for(i in 1:nrow(codaSamples)){
+  groupExp<-matrix(0,nrow=1,ncol=3)
+  colnames(groupExp)<-levels(as.factor(df2bT0$group))
+  for(g in 2:3){
+    betaVars<-paste0("beta[",g,",",1:p,"]")
+    codaSampBeta<-codaSamples[i,match(betaVars,colnames(codaSamples))]
+    codaSampBeta0<-codaSamples[i,match(paste0("beta0[",g,"]"),colnames(codaSamples))]
+    groupExp[1,g]<-exp(codaSampBeta0 + X[codaSamples$lo[i],] %*% t(codaSampBeta))
+  }
+  groupExp[,1]<-1
+  groupProbs<-groupExp/apply(groupExp,1,sum)
+  groupProbs<-data.frame(ptid=df2bT0$ptid[codaSamples$lo[i]],groupProbs)
+  
+  # Add to lists:
+  groupExp<-as.data.frame(groupExp)
+  groupExp$iter<-i
+  groupProbs$iter<-i
+  groupExpList[[i]]<-groupExp
+  groupProbsList[[i]]<-groupProbs
+  if(i %% 2880==0){
+    print(i/nrow(groupProbs)*100)
+  }
+}
+groupExp<-do.call("rbind",groupExpList)
+groupProbs<-do.call("rbind",groupProbsList)
+
+# Multinomial loss:
+groupProbs<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbs)
+groupProbs$ind<-match(gsub("-",".",gsub(" ",".",groupProbs$group)),names(groupProbs))
+groupProbs$multLoss<-NA
+for(i in 1:nrow(groupProbs)){
+  groupProbs$multLoss[i]<-groupProbs[i,groupProbs$ind[i]]
+  if(i %% 2880==0){
+    print(i/nrow(groupProbs)*100)
+  }
+}
+groupProbs$multLoss<-unlist(groupProbs$multLoss)
+groupProbs$multLoss<-(-log(groupProbs$multLoss))
+save.image(file="working_20190223c.RData")
