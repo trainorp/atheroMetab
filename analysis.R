@@ -562,9 +562,6 @@ for(colName in colnames(codaSamplesOneModel)){
 }
 codaSOMParamQuant$param<-colnames(codaSamplesOneModel)
 
-############ Analysis of one set of MCMC chains ############
-# codaSamples
-
 ############ T0 Bayesian model prediction from LOO-CV ############
 # Combind sets of chains:
 codaSamples<-do.call("rbind",codaSamples)
@@ -590,7 +587,9 @@ for(i in 1:nrow(codaSamples)){
   groupProbs$iter<-i
   groupExpList[[i]]<-groupExp
   groupProbsList[[i]]<-groupProbs
-  print(i)
+  if(i %% 2880==0){
+    print(i/nrow(groupProbs)*100)
+  }
 }
 groupExp<-do.call("rbind",groupExpList)
 groupProbs<-do.call("rbind",groupProbsList)
