@@ -488,6 +488,7 @@ save.image(file="working_20190223.RData")
 
 ############ T0 Bayesian model fitting ############
 load(file="working_20190223.RData")
+
 metabInclude<-cpsTemp$metabID[1:15]
 rJAGSModel2<-"
 model{
@@ -514,12 +515,16 @@ model{
       beta[r,j] ~ dnorm(0,tau)
     }
   }
-  tau~dgamma(1,1)
+  tau~dgamma(2,1)
   SD<-sqrt(1/tau)
 }"
 
-X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
+tropT0<-oxPLDF %>% select(ptid,tropT0) %>% mutate(logTrop=log(tropT0+.0001)) %>% select(-tropT0)
+df2bT0<-df2bT0 %>% left_join(tropT0)
+X<-scale(df2bT0[,names(df2bT0) %in% c(metabInclude,"logTrop")])
+# X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
 p<-dim(X)[2]
+cat("p is ",p,"\n")
 
 # Sample for cross-validation
 library(doParallel)
@@ -545,7 +550,7 @@ proc.time()-ptm
 stopCluster(cl)
 
 save.image(file="working_20190223b.RData")
-load(file="working_20190223b.RData")
+
 
 # Not LOO model:
 n<-dim(X)[1]
@@ -553,7 +558,7 @@ set.seed(3333333)
 model<-rjags::jags.model(file=textConnection(rJAGSModel2),
                          data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
 codaSamplesOneModel<-rjags::coda.samples(model,
-                           variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+                                         variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
 codaSamplesOneModel<-as.data.frame(do.call("rbind",codaSamplesOneModel))
 
 codaSOMParamQuant<-data.frame()
@@ -607,14 +612,13 @@ for(i in 1:nrow(groupProbs)){
 groupProbs$multLoss<-unlist(groupProbs$multLoss)
 groupProbs$multLoss<-(-log(groupProbs$multLoss))
 save.image(file="working_20190223c.RData")
-load(file="working_20190223c.RData")
 
 # CV-estimated confusion matrix:
 groupProbsSum<-groupProbs %>% select(ptid,Thrombotic.MI,Non.Thrombotic.MI,sCAD) %>% group_by(ptid) %>% 
   summarize(Thrombotic.MI=median(Thrombotic.MI),Non.Thrombotic.MI=median(Non.Thrombotic.MI),
             sCAD=median(sCAD))
 groupProbsSum$predGroup<-c("Thrombotic MI","Non-Thrombotic MI","sCAD")[apply(groupProbsSum[,
-                      c("Thrombotic.MI","Non.Thrombotic.MI","sCAD")],1,which.max)]
+                                                                                           c("Thrombotic.MI","Non.Thrombotic.MI","sCAD")],1,which.max)]
 groupProbsSum<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbsSum,by="ptid")
 xtabs(~group+predGroup,data=groupProbsSum)
 
