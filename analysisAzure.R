@@ -50,7 +50,7 @@ registerDoParallel(cl)
 ptm<-proc.time()
 codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
   X2<-X[-i,]
-  y<-y[-i]
+  y2<-y[-i]
   # tempGroupInd<-df2bT0$group[-1]
   # resampled<-sample(which(tempGroupInd=="Non-Thrombotic MI"),4)
   n<-dim(X2)[1]
