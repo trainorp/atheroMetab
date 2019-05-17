@@ -612,6 +612,7 @@ for(i in 1:nrow(groupProbs)){
 groupProbs$multLoss<-unlist(groupProbs$multLoss)
 groupProbs$multLoss<-(-log(groupProbs$multLoss))
 save.image(file="working_20190223c.RData")
+load(file="working_20190223c.RData")
 
 # CV-estimated confusion matrix:
 groupProbsSum<-groupProbs %>% select(ptid,Thrombotic.MI,Non.Thrombotic.MI,sCAD) %>% group_by(ptid) %>% 
@@ -621,6 +622,7 @@ groupProbsSum$predGroup<-c("Thrombotic MI","Non-Thrombotic MI","sCAD")[apply(gro
                                                                                            c("Thrombotic.MI","Non.Thrombotic.MI","sCAD")],1,which.max)]
 groupProbsSum<-df2bT0 %>% select(ptid,group) %>% left_join(groupProbsSum,by="ptid")
 xtabs(~group+predGroup,data=groupProbsSum)
+prop.table(xtabs(~group+predGroup,data=groupProbsSum),2)
 
 # Plots
 groupProbsL<-groupProbs %>% select(-multLoss,-group,-ind,-predGroup) %>% 
