@@ -394,12 +394,41 @@ chainDF$group[chainDF$i == 3] <- "sCAD"
 chainDF<-chainDF %>% left_join(metabKey)
 
 ############ Variable selection analysis ############
+rJAGSModel3Priors <- "
+model{
+  # Priors:
+  beta0[1] <- 0
+  for(j in 1:p){
+    beta[1,j] <- 0
+  }
+  for(r in 2:nGrps){
+    beta0[r] ~ dnorm(0, 0.05)
+  }
+  for(j in 1:p){
+    delta[1,j] ~ dbern(prob)
+    for(r in 2:nGrps){
+      gamma[r,j] ~ dnorm(0, tau)
+      beta[r,j] <- gamma[r,j] * delta[1,j]
+    }
+  }
+  nVarsInc <- sum(delta[1,1:p])
+  prob ~ dbeta(5, 100)
+  tau ~ dgamma(1, 1)
+  SD <- sqrt(1 / tau)
+}"
+priorModel <- rjags::jags.model(file = textConnection(rJAGSModel3Priors),
+                           inits = list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = 333),
+                           data = list(p = p, nGrps = nGrps), n.chains = 10, n.adapt = 10000)
+priorSamples <- rjags::coda.samples(priorModel,
+  variable.names = c("prob", "nVarsInc","gamma", "delta", "tau", "SD", "beta0", "beta"), n.iter = 400000, thin = 10)
+priorSamples <- do.call(rbind, priorSamples)
+
 # Plot prior distributions:
-priorProb <- data.frame(x = rbeta(1000000, 5, 100))
-priorTau <- data.frame(x = rgamma(1000000, 1, 1))
+priorProb <- data.frame(x = priorSamples[,"prob"])
+priorTau <- data.frame(x = priorSamples[,"tau"])
 priorTau$variance <- 1 / priorTau$x
 priorTau$sd <- sqrt(priorTau$var)
-priorTau$gamma <- sapply(priorTau$sd, function(x) rnorm(1, 0, x))
+priorGamma <- data.frame(x = c(priorSamples[,grepl("gamma", colnames(priorSamples))])[1:1e6])
 
 p1 <- ggplot(priorProb, aes(x = x, y = ..density..)) + 
   geom_histogram(fill = "grey60", color = "black", bins = 50) + 
@@ -416,14 +445,16 @@ p3 <- ggplot(priorTau, aes(x = log(variance), y = ..density..)) +
   theme_bw() + xlab("Value") + ylab("Density") + ggtitle(expression(paste("Prior for ", log(sigma ^ 2)))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
-p4 <- ggplot(priorTau, aes(x = gamma, y = ..density..)) + 
+p4 <- ggplot(priorGamma, aes(x = x, y = ..density..)) + 
   geom_histogram(fill = "grey60", color = "black", bins = 50) + 
   theme_bw() + xlab("Value") + ylab("Density") + xlim(-15, 15) + ggtitle(expression(paste("Prior for ", gamma))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
 # png(file="Plots/priorDists.png",height=6,width=7,res=300,units="in")
-gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
+gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
 # dev.off()
+
+rm(priorModel, priorSamples, priorProb, priorTau, priorGamma, p1, p2, p3, p4)
 
 # Plot some chains:
 set.seed(3)
