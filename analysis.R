@@ -1,101 +1,99 @@
 ############ Prereqs ############
 ## Start always run:
-options(stringsAsFactors=FALSE,scipen=900)
-library(pillar)
+options(stringsAsFactors = FALSE, scipen = 900)
 library(tidyverse)
 
 setwd("~/gdrive/AthroMetab/WCMC")
-# setwd("~/atheroMetab")
 
 ## End always run
 
 # Import WCMC data:
-df1<-readxl::read_xlsx("Data/targetedData_20181203.xlsx")
-metabKey<-readxl::read_xlsx("Data/metabKey_20181123.xlsx")
+df1 <- readxl::read_xlsx("Data/targetedData_20181203.xlsx")
+metabKey <- readxl::read_xlsx("Data/metabKey_20181123.xlsx")
 
 # Import cohort phenotypes:
-oxPLDF<-read.csv("~/gdrive/Athro/oxPL6/wide_data_20150529.csv")
-oxPLDF$ptid<-as.character(oxPLDF$ptid)
-phenoDF<-oxPLDF %>% select(ptid,group=migroup2,coarseGroup=group,oldMIGroup=migroup)
-phenoDF$group[is.na(phenoDF$group)]<-"sCAD"
-phenoDF$group[phenoDF$group=="Type 1"]<-"Thrombotic MI"
-phenoDF$group[phenoDF$group=="Type 2"]<-"Non-Thrombotic MI"
+oxPLDF <- read.csv("~/gdrive/Athro/oxPL6/wide_data_20150529.csv")
+oxPLDF$ptid <- as.character(oxPLDF$ptid)
+phenoDF <- oxPLDF %>% select(ptid, group = migroup2, coarseGroup = group, oldMIGroup = migroup)
+phenoDF$group[is.na(phenoDF$group)] <- "sCAD"
+phenoDF$group[phenoDF$group=="Type 1"] <- "Thrombotic MI"
+phenoDF$group[phenoDF$group=="Type 2"] <- "Non-Thrombotic MI"
 
-phenoDF$oldGroup<-phenoDF$group
+phenoDF$oldGroup <- phenoDF$group
 for(i in 1:nrow(phenoDF)){
-  if(!is.na(phenoDF$oldMIGroup[i]) & phenoDF$group[i]=="Thrombotic MI") phenoDF$oldGroup[i]<-NA
-  if(phenoDF$group[i]=="Indeterminate") phenoDF$oldGroup[i]<-NA
+  if(!is.na(phenoDF$oldMIGroup[i]) & phenoDF$group[i] == "Thrombotic MI") phenoDF$oldGroup[i] <- NA
+  if(phenoDF$group[i] == "Indeterminate") phenoDF$oldGroup[i] <- NA
 }
 
 # Import Untargeted data and key:
-untarKey<-read.csv("../Data/metabolite_key2.csv")
-untarDF1<-read.csv("../Data/scaled.csv")
+untarKey <- read.csv("../Data/metabolite_key2.csv")
+untarDF1 <- read.csv("../Data/scaled.csv")
 
 # Mapping:
-idMap<-readxl::read_xlsx("Data/idMap.xlsx")
+idMap <- readxl::read_xlsx("Data/idMap.xlsx")
 
 ############ Data processing ############
 # QC data:
-df1$samp<-gsub("Biorec_preDeFilippis0","QC",df1$samp)
-df1$samp<-gsub("Biorec_postDeFilippis0","QC",df1$samp)
-qcDF<-df1[grepl("QC",df1$samp),]
-qcDFL<-qcDF %>% gather(key="metabID",value="Concentration",-samp)
+df1$samp <- gsub("Biorec_preDeFilippis0", "QC", df1$samp)
+df1$samp <- gsub("Biorec_postDeFilippis0", "QC", df1$samp)
+qcDF <- df1[grepl("QC", df1$samp),]
+qcDFL <- qcDF %>% gather(key = "metabID", value = "Concentration", -samp)
 
 # Blank data:
-df1$samp<-gsub("MtdBlank_preDeFilippis0","Blank",df1$samp)
-df1$samp<-gsub("MtdBlank_postDeFilippis0","Blank",df1$samp)
+df1$samp <- gsub("MtdBlank_preDeFilippis0", "Blank", df1$samp)
+df1$samp <- gsub("MtdBlank_postDeFilippis0", "Blank", df1$samp)
 
 # Phenotype data:
-df1$ptid<-gsub("Blank[[:digit:]]","",gsub("QC[[:digit:]]","",
-                                          str_split(df1$samp,"-",simplify=TRUE)[,1]))
-df1$timept<-str_split(df1$samp,"-",simplify=TRUE)[,2]
-phenoDF<-df1 %>% select(samp,ptid,timept) %>% left_join(phenoDF)
-df1<-df1 %>% left_join(phenoDF)
+df1$ptid <- gsub("Blank[[:digit:]]", "", gsub("QC[[:digit:]]", "",
+                                          str_split(df1$samp, "-", simplify = TRUE)[,1]))
+df1$timept <- str_split(df1$samp, "-", simplify = TRUE)[,2]
+phenoDF <- df1 %>% select(samp, ptid, timept) %>% left_join(phenoDF)
+df1 <- df1 %>% left_join(phenoDF)
 
 # Imputation and normalization / scaling:
-which(is.na(df1[,names(df1) %in% metabKey$metabID]),arr.ind=TRUE)
+which(is.na(df1[,names(df1) %in% metabKey$metabID]), arr.ind = TRUE)
 
-impFun<-function(x){
-  x2<-x[x>0]
-  x[x<=0]<-min(x2)/2
+impFun <- function(x){
+  x2 <- x[x>0]
+  x[x <= 0] <- min(x2) / 2
   return(x)
 }
-df2<-df1
-df2[,names(df2) %in% metabKey$metabID]<-apply(df2[,names(df2) %in% metabKey$metabID],2,impFun)
-df2[,names(df2) %in% metabKey$metabID]<-log2(df2[,names(df2) %in% metabKey$metabID])
+df2 <- df1
+df2[,names(df2) %in% metabKey$metabID] <- apply(df2[,names(df2) %in% metabKey$metabID], 2, impFun)
+df2[,names(df2) %in% metabKey$metabID] <- log2(df2[,names(df2) %in% metabKey$metabID])
 
 # With QC and blanks removed:
-df1b<-df1 %>% filter(!is.na(group))
-df2b<-df2 %>% filter(!is.na(group))
+df1b <- df1 %>% filter(!is.na(group))
+df2b <- df2 %>% filter(!is.na(group))
 
 ############ QC samples throughout run ############
-qcMeans<-qcDFL %>% group_by(metabID) %>% summarize(meanConc=mean(Concentration))
-qcMeansECDF<-ecdf(qcMeans$meanConc)
-qcMeans$prob<-qcMeansECDF(qcMeans$meanConc)
+qcMeans <- qcDFL %>% group_by(metabID) %>% summarize(meanConc = mean(Concentration))
+qcMeansECDF <- ecdf(qcMeans$meanConc)
+qcMeans$prob <- qcMeansECDF(qcMeans$meanConc)
 
-qcPlotDF<-qcDFL %>% filter(metabID %in% c("m22","m40","m37","m34","m10","m43","m5",
+qcPlotDF <- qcDFL %>% filter(metabID %in% c("m22","m40","m37","m34","m10","m43","m5",
                                            "m25","m44","m50","m30"))
-qcPlotDF$metabID<-factor(qcPlotDF$metabID,levels=c("m22","m40","m37","m34","m10","m43","m5",
+qcPlotDF$metabID <- factor(qcPlotDF$metabID, levels = c("m22","m40","m37","m34","m10","m43","m5",
                                                    "m25","m44","m50","m30"))
-qcPlotDF<-qcPlotDF %>% arrange(metabID)
-qcPlotDF$Metabolite<-metabKey$Metabolite[match(qcPlotDF$metabID,metabKey$metabID)]
-qcPlotDF$Metabolite<-factor(qcPlotDF$Metabolite,levels=unique(qcPlotDF$Metabolite))
+qcPlotDF <- qcPlotDF %>% arrange(metabID)
+qcPlotDF$Metabolite <- metabKey$Metabolite[match(qcPlotDF$metabID, metabKey$metabID)]
+qcPlotDF$Metabolite <- factor(qcPlotDF$Metabolite, levels = unique(qcPlotDF$Metabolite))
 
-# png(file="Plots/qcPlot1.png",height=4,width=7,units="in",res=300)
-ggplot(qcPlotDF,aes(x=samp,y=log(Concentration),group=Metabolite,color=Metabolite)) + 
+#png(file = "Plots/qcPlot1.png", height = 4, width = 7, units = "in", res = 300)
+ggplot(qcPlotDF,aes(x = samp,y = log(Concentration), group = Metabolite, color = Metabolite)) + 
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
-# dev.off()
+#dev.off()
 
 ############ Summary statistics ############
-summaryFun2<-function(metab){
-  tab1<-df1b %>% select(group,timept,x=metab) %>% 
-    group_by(group,timept) %>% summarize(mean=mean(x,na.rm=TRUE),sd=sd(x,na.rm=TRUE),
-      min=min(x,na.rm=TRUE),max=max(x,na.rm=TRUE),median=median(x,na.rm=TRUE),
-      IQR=IQR(x,na.rm=TRUE))
-  tab1$metabID<-metab
+summaryFun2 <- function(metab){
+  tab1 <- df1b %>% select(group, timept, x = metab) %>% 
+    group_by(group, timept) %>% summarize(mean = mean(x, na.rm = TRUE),sd = sd(x, na.rm = TRUE),
+      min = min(x, na.rm = TRUE), max = max(x, na.rm = TRUE),median = median(x, na.rm = TRUE),
+      IQR = IQR(x, na.rm = TRUE))
+  tab1$metabID <- metab
   return(tab1)
 }
-summaryDF<-do.call("rbind",lapply(metabKey$metabID,function(metab) summaryFun2(metab)))
+summaryDF <- do.call("rbind", lapply(metabKey$metabID, function(metab) summaryFun2(metab)))
 
 # Separate summaries by timepoint: 
 summaryDFT0<-summaryDF %>% filter(timept=="T0") %>% select(-timept)
