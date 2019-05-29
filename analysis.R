@@ -96,84 +96,84 @@ summaryFun2 <- function(metab){
 summaryDF <- do.call("rbind", lapply(metabKey$metabID, function(metab) summaryFun2(metab)))
 
 # Separate summaries by timepoint: 
-summaryDFT0<-summaryDF %>% filter(timept=="T0") %>% select(-timept)
-summaryDFTFU<-summaryDF %>% filter(timept=="TFU") %>% select(-timept)
-names(summaryDFT0)[!names(summaryDFT0) %in% c("group","metabID")]<-
-  paste(names(summaryDFT0)[!names(summaryDFT0) %in% c("group","metabID")],"T0",sep="_")
-names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group","metabID")]<-
-  paste(names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group","metabID")],"TFU",sep="_")
-summaryDF<-summaryDFT0 %>% left_join(summaryDFTFU)
-rm(summaryDFT0,summaryDFTFU)
+summaryDFT0 <- summaryDF %>% filter(timept == "T0") %>% select(-timept)
+summaryDFTFU <- summaryDF %>% filter(timept == "TFU") %>% select(-timept)
+names(summaryDFT0)[!names(summaryDFT0) %in% c("group", "metabID")] <-
+  paste(names(summaryDFT0)[!names(summaryDFT0) %in% c("group", "metabID")], "T0", sep = "_")
+names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group", "metabID")] <-
+  paste(names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group", "metabID")], "TFU", sep = "_")
+summaryDF <- summaryDFT0 %>% left_join(summaryDFTFU)
+rm(summaryDFT0, summaryDFTFU)
 
 # Make pretty:
-summaryDF$meanSD_T0<-paste0(format(summaryDF$mean_T0,digits=2,nsmall=2,trim=TRUE),
-                            "+/-",format(summaryDF$sd_T0,digits=2,nsmall=2,trim=TRUE))
-summaryDF$medianIQR_T0<-paste0(format(summaryDF$median_T0,digits=2,nsmall=2,trim=TRUE),
-                               "+/-",format(summaryDF$IQR_T0,digits=2,nsmall=2,trim=TRUE),
-                               " [",format(summaryDF$min_T0,digits=2,nsmall=2,trim=TRUE),
-                               ", ",format(summaryDF$max_T0,digits=2,nsmall=2,trim=TRUE),"]")
-summaryDF$meanSD_TFU<-paste0(format(summaryDF$mean_TFU,digits=2,nsmall=2,trim=TRUE),
-                            "+/-",format(summaryDF$sd_TFU,digits=2,nsmall=2,trim=TRUE))
-summaryDF$medianIQR_TFU<-paste0(format(summaryDF$median_TFU,digits=2,nsmall=2,trim=TRUE),
-                               "+/-",format(summaryDF$IQR_TFU,digits=2,nsmall=2,trim=TRUE),
-                               " [",format(summaryDF$min_TFU,digits=2,nsmall=2,trim=TRUE),
-                               ", ",format(summaryDF$max_TFU,digits=2,nsmall=2,trim=TRUE),"]")
-summaryDF<-summaryDF %>% select(metabID,group,meanSD_T0,meanSD_TFU,medianIQR_T0,medianIQR_TFU)
-summaryDF<-metabKey %>% select(metabID,Metabolite) %>% left_join(summaryDF)
-summaryDF$group<-factor(summaryDF$group,levels=c("sCAD","Non-Thrombotic MI",
-                      "Indeterminate","Thrombotic MI"))
-summaryDF$metabID<-factor(summaryDF$metabID,levels=metabKey$metabID)
-summaryDF<-summaryDF %>% arrange(metabID,group)
-# write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
+summaryDF$meanSD_T0 <- paste0(format(summaryDF$mean_T0, digits = 2, nsmall = 2, trim = TRUE),
+                            "+/-", format(summaryDF$sd_T0, digits = 2, nsmall = 2, trim = TRUE))
+summaryDF$medianIQR_T0 <- paste0(format(summaryDF$median_T0, digits = 2, nsmall = 2, trim = TRUE),
+                               "+/-", format(summaryDF$IQR_T0, digits = 2, nsmall = 2, trim = TRUE),
+                               " [", format(summaryDF$min_T0, digits = 2, nsmall = 2, trim = TRUE),
+                               ", ", format(summaryDF$max_T0, digits = 2, nsmall = 2, trim = TRUE), "]")
+summaryDF$meanSD_TFU <- paste0(format(summaryDF$mean_TFU, digits = 2, nsmall = 2, trim = TRUE),
+                            "+/-", format(summaryDF$sd_TFU, digits = 2, nsmall = 2, trim = TRUE))
+summaryDF$medianIQR_TFU <- paste0(format(summaryDF$median_TFU, digits = 2, nsmall = 2, trim = TRUE),
+                               "+/-", format(summaryDF$IQR_TFU, digits = 2, nsmall = 2, trim = TRUE),
+                               " [", format(summaryDF$min_TFU, digits = 2, nsmall = 2, trim = TRUE),
+                               ", ", format(summaryDF$max_TFU, digits = 2, nsmall = 2, trim = TRUE), "]")
+summaryDF <- summaryDF %>% select(metabID, group, meanSD_T0, meanSD_TFU, medianIQR_T0, medianIQR_TFU)
+summaryDF <- metabKey %>% select(metabID, Metabolite) %>% left_join(summaryDF)
+summaryDF$group <- factor(summaryDF$group, levels = c("sCAD", "Non-Thrombotic MI",
+                      "Indeterminate", "Thrombotic MI"))
+summaryDF$metabID <- factor(summaryDF$metabID, levels = metabKey$metabID)
+summaryDF <- summaryDF %>% arrange(metabID, group)
+#write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
 
 ############ Untargeted vs MRM ############
 # Make comparison data frame from targeted data:
-compDF<-df2 %>% gather(key="metabID",value="conc",-samp)
-compDF$conc<-as.numeric(compDF$conc)
-tempSamp<-str_split(compDF$samp,"-",simplify=TRUE)[,1:2]
-tempSamp<-paste(tempSamp[,1],tempSamp[,2],sep="-")
-compDF$samp<-tempSamp
+compDF <- df2 %>% gather(key = "metabID", value = "conc", -samp)
+compDF$conc <- as.numeric(compDF$conc)
+tempSamp <- str_split(compDF$samp, "-", simplify = TRUE)[,1:2]
+tempSamp <- paste(tempSamp[,1], tempSamp[,2], sep = "-")
+compDF$samp <- tempSamp
 rm(tempSamp)
 
 # Make a new sample name in untargeted data for matching:
-untarDF1$samp<-paste(untarDF1$ptid,gsub("-","",untarDF1$timepoint),sep="-")
-compDF$relAbund<-NA
+untarDF1$samp <- paste(untarDF1$ptid, gsub("-", "", untarDF1$timepoint), sep = "-")
+compDF$relAbund <- NA
 for(i in 1:nrow(compDF)){
-  tempSamp<-untarDF1$samp[match(compDF$samp[i],untarDF1$samp)]
-  tempMetab<-idMap$untargeted[match(compDF$metabID[i],idMap$targeted)]
+  tempSamp <- untarDF1$samp[match(compDF$samp[i], untarDF1$samp)]
+  tempMetab <- idMap$untargeted[match(compDF$metabID[i], idMap$targeted)]
   if(!is.na(tempSamp) & !is.na(tempMetab)){
-    compDF$relAbund[i]<-untarDF1[untarDF1$samp==tempSamp,names(untarDF1)==tempMetab]
+    compDF$relAbund[i] <- untarDF1[untarDF1$samp == tempSamp, names(untarDF1) == tempMetab]
   }
 }
-compDF<-compDF[!is.na(compDF$relAbund),]
+compDF <- compDF[!is.na(compDF$relAbund),]
 
 # Plot & correlation:
-rDF<-data.frame(metabID=unique(compDF$metabID),r=NA)
-plotList<-list()
+rDF <- data.frame(metabID = unique(compDF$metabID), r = NA)
+plotList <- list()
 for(i in 1:nrow(rDF)){
-  rDF$r[i]<-cor(x=compDF[compDF$metabID==rDF$metabID[i],"conc"],
-      y=compDF[compDF$metabID==rDF$metabID[i],"relAbund"],method="spearman")
+  rDF$r[i] <- cor(x = compDF[compDF$metabID == rDF$metabID[i], "conc"],
+      y = compDF[compDF$metabID == rDF$metabID[i], "relAbund"], method = "spearman")
   
-  name1<-paste(rDF$metabID[i],
-               ": ",metabKey$`Full Name, synonym`[metabKey$metabID==rDF$metabID[i]])
-  name2<-untarKey$biochemical[match(idMap$untargeted[match(rDF$metabID[i],idMap$targeted)],
+  name1 <- paste(rDF$metabID[i],
+               ": ", metabKey$`Full Name, synonym`[metabKey$metabID == rDF$metabID[i]])
+  name2 <- untarKey$biochemical[match(idMap$untargeted[match(rDF$metabID[i], idMap$targeted)],
         untarKey$id)]
   
   # Label location:
-  minX<-min(compDF[compDF$metabID==rDF$metabID[i],"conc"])
-  maxX<-max(compDF[compDF$metabID==rDF$metabID[i],"conc"])
-  xLoc<-minX+1*(maxX-minX)/9
-  minY<-min(log2(compDF[compDF$metabID==rDF$metabID[i],"relAbund"]))
-  maxY<-max(log2(compDF[compDF$metabID==rDF$metabID[i],"relAbund"]))
-  yLoc<-minY+8*(maxY-minY)/9
+  minX <- min(compDF[compDF$metabID == rDF$metabID[i], "conc"])
+  maxX <- max(compDF[compDF$metabID == rDF$metabID[i], "conc"])
+  xLoc <- minX + (maxX - minX) / 9
+  minY <- min(log2(compDF[compDF$metabID == rDF$metabID[i], "relAbund"]))
+  maxY <- max(log2(compDF[compDF$metabID == rDF$metabID[i], "relAbund"]))
+  yLoc <- minY + 8 * (maxY - minY) / 9
   
-  plotList[[i]]<-ggplot(compDF %>% filter(metabID==rDF$metabID[i]),aes(x=conc,log2(relAbund))) + 
+  plotList[[i]] <- ggplot(compDF %>% filter(metabID == rDF$metabID[i]), aes(x = conc, y = log2(relAbund))) + 
     geom_point() + theme_bw() + xlab("Log(Concentration)") + 
-    ylab("Log(scaled abund)") + ggtitle(paste(name1,name2,sep=";\n")) +
-    annotate("text",x=xLoc,y=yLoc,label=paste("r = ",formatC(rDF$r[i],digits=3)))
+    ylab("Log(scaled abund)") + ggtitle(paste(name1, name2, sep = ";\n")) +
+    annotate("text", x = xLoc, y = yLoc, label = paste("r = ", formatC(rDF$r[i], digits = 3)))
 }
-# png(file="Plots/rel2AbsCor.png",height=67,width=12,res=100,units="in")
-# gridExtra::grid.arrange(grobs=plotList,ncol=3)
+# png(file = "Plots/rel2AbsCor.png", height = 67, width = 12, res = 100, units = "in")
+gridExtra::grid.arrange(grobs = plotList, ncol = 3)
 # dev.off()
 
 ############ Correlation between metabolites ############
