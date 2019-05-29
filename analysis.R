@@ -177,95 +177,104 @@ gridExtra::grid.arrange(grobs = plotList, ncol = 3)
 # dev.off()
 
 ############ Correlation between metabolites ############
-metabCor<-cor(df2b[,names(df2b) %in% metabKey$metabID],method="spearman")
-rownames(metabCor)<-colnames(metabCor)<-metabKey$Metabolite
-# write.csv(metabCor,file="Results/metabCor.csv",row.names=FALSE)
+# Make this separate for 
+metabCor <- cor(df2b[,names(df2b) %in% metabKey$metabID], method = "spearman")
+rownames(metabCor) <- colnames(metabCor) <- metabKey$Metabolite
+# write.csv(metabCor, file = "Results/metabCor.csv", row.names = FALSE)
 
 # Correlation plot:
-# png(file="Plots/absCor.png",height=5,width=5,units="in",res=300)
-corrplot::corrplot(metabCor,order="hclust",tl.cex=.4)
+# png(file = "Plots/absCor.png", height = 5, width = 5, units = "in", res = 300)
+corrplot::corrplot(metabCor, order = "hclust", tl.cex = .4)
 # dev.off()
 
 ############ Change score linear model ############
 # Prepare data:
-df2DfromB<-df2b %>% select(-samp,-coarseGroup,-oldMIGroup,-oldGroup) %>% 
-  gather(key="metabID",value="value",-(ptid:group))
-df2DfromB<-df2DfromB %>% spread(key=timept,value=value)
-df2DfromB$d<-df2DfromB$T0-df2DfromB$TFU
-df2DfromB<-cbind(df2DfromB,psych::dummy.code(df2DfromB$group))
+df2DfromB <- df2b %>% select(-samp, -coarseGroup, -oldMIGroup, -oldGroup) %>% 
+  gather(key = "metabID", value = "value", -(ptid:group))
+df2DfromB <- df2DfromB %>% spread(key = timept, value = value)
+df2DfromB$d <- df2DfromB$T0 - df2DfromB$TFU
+df2DfromB <- cbind(df2DfromB, psych::dummy.code(df2DfromB$group))
 
 # JAGS model:
-rJAGSModel<-"
+rJAGSModel <- "
 model{
   # Likelihood:
   for(i in 1:n){
-    Y[i]~dnorm(mu[i],invVar)
-    mu[i]<-beta[1]+beta[2]*NonThrombMI[i]+beta[3]*Indeterminate[i]+
-      beta[4]*ThrombMI[i]
+    Y[i] ~ dnorm(mu[i], invVar)
+    mu[i] <- beta[1] + beta[2] * NonThrombMI[i] + beta[3] * Indeterminate[i] +
+      beta[4] * ThrombMI[i]
   }
   
   # Prior for beta:
   for(j in 1:4){
-    beta[j]~dnorm(0,0.0001)
+    beta[j] ~ dnorm(0,0.0001)
   }
   
   # Prior for the variance:
-  invVar~dgamma(0.01,0.01)
-  sigma<-1/sqrt(invVar)
+  invVar ~ dgamma(0.01, 0.01)
+  sigma <- 1 / sqrt(invVar)
 }"
 
 # Run the sampler for each metabolite
-samp3<-list()
+samp3 <- list()
 for(metab in metabKey$metabID){
-  df2DfromBTemp<-df2DfromB %>% filter(metabID==metab & !is.na(TFU) & !is.na(T0))
-  model<-rjags::jags.model(textConnection(rJAGSModel),
-                           data=list(Y=df2DfromBTemp$d,ThrombMI=df2DfromBTemp$`Thrombotic MI`,
-                                     NonThrombMI=df2DfromBTemp$`Non-Thrombotic MI`,
-                                     Indeterminate=df2DfromBTemp$Indeterminate,n=nrow(df2DfromBTemp)))
+  df2DfromBTemp <- df2DfromB %>% filter(metabID==metab & !is.na(TFU) & !is.na(T0))
+  model <- rjags::jags.model(textConnection(rJAGSModel),
+                           data = list(Y = df2DfromBTemp$d, ThrombMI = df2DfromBTemp$`Thrombotic MI`,
+                                     NonThrombMI = df2DfromBTemp$`Non-Thrombotic MI`,
+                                     Indeterminate = df2DfromBTemp$Indeterminate, n = nrow(df2DfromBTemp)))
   
-  update(model,10000); # Burnin for 10000 samples
-  samp<-rjags::coda.samples(model, variable.names=c("beta","sigma"),n.iter=20000)
-  samp2<-data.frame(metab=metab,
-                    sCAD=as.numeric(samp[[1]][,"beta[1]"]),
-                    T2=as.numeric(samp[[1]][,"beta[2]"]+samp[[1]][,"beta[1]"]),
-                    Ind=as.numeric(samp[[1]][,"beta[3]"]+samp[[1]][,"beta[1]"]),
-                    T1=as.numeric(samp[[1]][,"beta[4]"]+samp[[1]][,"beta[1]"]),
-                    T1vssCAD=as.numeric(samp[[1]][,"beta[4]"]),
-                    T1vsT2=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[2]"]),
-                    T1vsInd=as.numeric(samp[[1]][,"beta[4]"]-samp[[1]][,"beta[3]"]))
-  samp3[[metab]]<-samp2
+  update(model, 10000) # Burnin for 10000 samples
+  samp <- rjags::coda.samples(model, variable.names = c("beta","sigma"), n.iter = 20000)
+  samp2 <- data.frame(metab = metab,
+                    sCAD = as.numeric(samp[[1]][,"beta[1]"]),
+                    T2 = as.numeric(samp[[1]][,"beta[2]"] + samp[[1]][,"beta[1]"]),
+                    Ind = as.numeric(samp[[1]][,"beta[3]"] + samp[[1]][,"beta[1]"]),
+                    T1 = as.numeric(samp[[1]][,"beta[4]"] + samp[[1]][,"beta[1]"]),
+                    T1vssCAD = as.numeric(samp[[1]][,"beta[4]"]),
+                    T1vsT2 = as.numeric(samp[[1]][,"beta[4]"] - samp[[1]][,"beta[2]"]),
+                    T1vsInd = as.numeric(samp[[1]][,"beta[4]"] - samp[[1]][,"beta[3]"]))
+  samp3[[metab]] <- samp2
 }
-samp3<-do.call("rbind",samp3)
-rownames(samp3)<-NULL
+samp3 <- do.call("rbind", samp3)
+rownames(samp3) <- NULL
 
 # Wide to long:
-samp4<-samp3 %>% gather(key=effect,value=value,-metab)
+samp4 <- samp3 %>% gather(key = effect, value = value, -metab)
 
 # Summarize:
-ciFun<-function(x){
-  quants<-quantile(x,probs=c(.025,.975))
-  data.frame(mean=mean(x),median=median(x),lq=as.numeric(quants[1]),
-             uq=as.numeric(quants[2]))
+ciFun <- function(x){
+  quants <- quantile(x, probs = c(.025, .975))
+  quants2 <- HDInterval::hdi(x)
+  quants3 <- HDInterval::hdi(x, credMass = .9)
+  
+  data.frame(mean = mean(x), median = median(x), lq = as.numeric(quants[1]),
+             uq = as.numeric(quants[2]), lq2 = as.numeric(quants2[1]), uq2 = as.numeric(quants2[2]),
+             lq3 = as.numeric(quants3[1]), uq3 = as.numeric(quants3[2]))
 }
-samp4Sum<-samp4 %>% group_by(metab,effect) %>% do(ciFun(.$value))
+samp4Sum <- samp4 %>% group_by(metab, effect) %>% do(ciFun(.$value))
 
 # Join metabolite names:
-sampSum<-samp4Sum
-sampSum$Est<-paste0(sapply(samp4Sum$median,FUN=function(x) format(x,digits=2,nsmall=2))," (",
-      sapply(samp4Sum$lq,FUN=function(x) format(x,digits=2,nsmall=2)),", ",
-      sapply(samp4Sum$uq,FUN=function(x) format(x,digits=2,nsmall=2)),")")
-sampSum<-sampSum %>% select(metabID=metab,effect,Est)
-sampSum<-metabKey %>% select(metabID,Metabolite,`Full Name, synonym`) %>% 
+sampSum <- samp4Sum
+sampSum$Est <- paste0(sapply(samp4Sum$median, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
+      sapply(samp4Sum$lq2, FUN = function(x) format(x, digits = 2, nsmall = 2)), ", ",
+      sapply(samp4Sum$uq2, FUN = function(x) format(x, digits = 2, nsmall = 2)), ")")
+sampSum$Est2 <- paste0(sapply(samp4Sum$median, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
+                      sapply(samp4Sum$lq3, FUN = function(x) format(x, digits = 2, nsmall = 2)), ", ",
+                      sapply(samp4Sum$uq3, FUN = function(x) format(x, digits = 2, nsmall = 2)), ")")
+sampSum <- sampSum %>% select(metabID = metab, effect, Est, Est2)
+sampSum <- metabKey %>% select(metabID, Metabolite, `Full Name, synonym`) %>% 
   right_join(sampSum)
 
 # Make nice:
-sampSum<-sampSum %>% spread(key=effect,value=Est)
-sampSum<-sampSum %>% select(metabID,Metabolite,Name=`Full Name, synonym`,sCAD,T2,
-                            Ind,T1,T1vssCAD,T1vsT2,T1vsInd)
-# write.csv(sampSum,file="Results/changeModelSum.csv",row.names=FALSE)
+sampSum <- sampSum %>% select(-Est) %>% spread(key = effect, value = Est2)
+sampSum <- sampSum %>% select(metabID, Metabolite, Name = `Full Name, synonym`, sCAD, T2,
+                            Ind, T1, T1vssCAD, T1vsT2, T1vsInd)
+# write.csv(sampSum, file = "Results/changeModelSum.csv", row.names = FALSE)
 
 # Temp save:
 save.image("working_20190113.RData")
+#LOH
 
 ############ T0 Bayesian model selection ############
 load("working_20190113.RData")
