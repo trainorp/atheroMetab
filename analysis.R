@@ -278,59 +278,59 @@ save.image("working_20190113.RData")
 
 ############ T0 Bayesian model selection ############
 load("working_20190113.RData")
-rJAGSModel3<-"
+rJAGSModel3 <- "
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
+      pi[r,i] <- exp(beta0[r] + sum(beta[r,1:p] * X[i,1:p]))
     }
     # Likelihood:
-    y[i]~dcat(pi[1:nGrps,i])
-    logdensi[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
+    y[i] ~ dcat(pi[1:nGrps,i])
+    logdensi[i] <- logdensity.cat(y[i], pi[1:nGrps,i])
   }
-  logdens<-sum(logdensi)
+  logdens <- sum(logdensi)
   
   # Priors:
-  beta0[1]<-0
+  beta0[1] <- 0
   for(j in 1:p){
-    beta[1,j]<-0
+    beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r]~dnorm(0,0.01)
+    beta0[r] ~ dnorm(0, 0.05)
   }
   for(j in 1:p){
     delta[1,j] ~ dbern(prob)
     for(r in 2:nGrps){
-      gamma[r,j] ~ dnorm(0,tau)
-      beta[r,j] <- gamma[r,j]*delta[1,j]
+      gamma[r,j] ~ dnorm(0, tau)
+      beta[r,j] <- gamma[r,j] * delta[1,j]
     }
   }
-  nVarsInc<-sum(delta[1,1:p])
-  prob~dbeta(5,100)
-  tau~dgamma(1,1)
-  SD<-sqrt(1/tau)
+  nVarsInc <- sum(delta[1,1:p])
+  prob ~ dbeta(5, 100)
+  tau ~ dgamma(1, 1)
+  SD <- sqrt(1 / tau)
 }"
 
-df2bT0<-df2b %>% filter(timept=="T0" & group!="Indeterminate")
-df2bT0$group<-factor(df2bT0$group,levels=c("Thrombotic MI","Non-Thrombotic MI","sCAD"))
-y<-as.numeric(as.factor(df2bT0$group))
-nGrps<-length(unique(y))
-X<-scale(df2bT0[,grepl("m\\d",names(df2bT0))])
-p<-dim(X)[2]
-n<-dim(X)[1]
+df2bT0 <- df2b %>% filter(timept=="T0" & group != "Indeterminate")
+df2bT0$group <- factor(df2bT0$group, levels = c("Thrombotic MI", "Non-Thrombotic MI", "sCAD"))
+y <- as.numeric(as.factor(df2bT0$group))
+nGrps <- length(unique(y))
+X <- scale(df2bT0[,grepl("m\\d", names(df2bT0))])
+p <- dim(X)[2]
+n <- dim(X)[1]
 
 # Wrapper function for parallel:
 parWrapper<-function(seedIter){
   # Model definition:
-  model<-rjags::jags.model(file=textConnection(rJAGSModel3),
-             inits=list(.RNG.name="base::Wichmann-Hill",.RNG.seed=seedIter),
-             data=list(y=y,X=X,p=p,n=n,nGrps=nGrps),n.chains=1,n.adapt=1000)
+  model <- rjags::jags.model(file = textConnection(rJAGSModel3),
+             inits = list(.RNG.name = "base::Wichmann-Hill", .RNG.seed = seedIter),
+             data = list(y = y, X = X, p = p, n = n, nGrps = nGrps), n.chains = 1, n.adapt = 1000)
   codaSamples<-tryCatch({
-      codaSamples<-rjags::coda.samples(model,
-           variable.names=c("logdens","prob","nVarsInc","delta","tau","SD","beta0","beta"),
-           n.iter=50000,thin=10)
+      codaSamples <- rjags::coda.samples(model,
+           variable.names = c("logdens", "prob", "nVarsInc", "delta", "tau", "SD", "beta0", "beta"),
+           n.iter = 20000, thin = 10)
     },error=function(e){
-      codaSamples<-e
+      codaSamples <- e
       return(codaSamples)
     }
   )
@@ -338,91 +338,87 @@ parWrapper<-function(seedIter){
 }
 
 # Create the cluster and export needed variables/data:
-nChains<-6
-cl<-parallel::makeCluster(nChains)
-parallel::clusterExport(cl,list("y","X","p","n","nGrps","rJAGSModel3"))
+nChains <- 20
+cl <- parallel::makeCluster(8)
+parallel::clusterExport(cl, list("y", "X", "p", "n", "nGrps", "rJAGSModel3"))
 
 # Do the distributed MCMC sampling:
-ptm<-proc.time()
-samp<-parallel::clusterApply(cl,1:nChains,parWrapper)
-proc.time()-ptm
+ptm <- proc.time()
+samp <- parallel::clusterApply(cl, 1:nChains, parWrapper)
+proc.time() - ptm
 parallel::stopCluster(cl)
 
 # Save result:
-# save.image("working_20190121.RData")
+save.image("working_20190121.RData")
 load("working_20190121.RData")
 
 # Make chain matricies
-samp<-samp[-5]
-nChains<-nChains-1
+# samp<-samp[-5]
+# nChains<-nChains-1
 # samps<-lapply(samp,function(x) x[[1]])
-samps<-samp
-chainMatrix1<-as.matrix(samps[[1]])
+samps <- samp
+chainMatrix1 <- as.matrix(samps[[1]])
 
 # Wide to long:
-chainDF<-data.frame()
+chainDF <- data.frame()
 for(i in 1:nChains){
-  chainDFTemp<-as.data.frame(as.matrix(samps[[i]])) %>% gather(key="parameter")
-  chainDFTemp$chain<-i
-  chainDFTemp$iter<-1:nrow(as.matrix(samps[[i]]))
-  chainDF<-rbind(chainDF,chainDFTemp)
+  chainDFTemp <- as.data.frame(as.matrix(samps[[i]])) %>% gather(key="parameter")
+  chainDFTemp$chain <- i
+  chainDFTemp$iter <- 1:nrow(as.matrix(samps[[i]]))
+  chainDF <- rbind(chainDF, chainDFTemp)
 }
-chainDF$chain<-factor(chainDF$chain)
+chainDF$chain <- factor(chainDF$chain)
 
 # Higher parameters:
-chainDFHigher<-data.frame()
+chainDFHigher <- data.frame()
 for(i in 1:nChains){
-  chainDFTemp<-as.data.frame(as.matrix(samps[[i]]))
-  chainDFTemp<-chainDFTemp[,colnames(chainDFTemp) %in% c("logdens","nVarsInc","prob","tau","SD")]
-  chainDFTemp$chain<-i
-  chainDFHigher<-rbind(chainDFHigher,chainDFTemp)
+  chainDFTemp <- as.data.frame(as.matrix(samps[[i]]))
+  chainDFTemp <- chainDFTemp[,colnames(chainDFTemp) %in% c("logdens", "nVarsInc", "prob", "tau", "SD")]
+  chainDFTemp$chain <- i
+  chainDFHigher <- rbind(chainDFHigher, chainDFTemp)
 }
 
 # Process MCMC samples:
-chainDF$paramType<-str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,1]
-chainDF<-chainDF[!chainDF$paramType %in% c("logdens","nVarsInc","prob"),]
-chainDF$i<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,2])
-chainDF$j<-gsub("\\]","",str_split(chainDF$parameter,"\\[|\\,",simplify=TRUE)[,3])
-chainDF$metabID<-paste0("m",chainDF$j)
+chainDF$paramType <- str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,1]
+chainDF <- chainDF[!chainDF$paramType %in% c("logdens", "nVarsInc", "prob"),]
+chainDF$i <- gsub("\\]", "", str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,2])
+chainDF$j <- gsub("\\]", "", str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,3])
+chainDF$metabID <- paste0("m", chainDF$j)
 
 # Filter out un-neaded due to level coding:
-chainDF<-chainDF[!(chainDF$paramType=="beta" & chainDF$i=="1"),]
-chainDF$group<-"Non-Thrombotic MI"
-chainDF$group[chainDF$i==3]<-"sCAD"
+chainDF <- chainDF[!(chainDF$paramType == "beta" & chainDF$i == "1"),]
+chainDF$group <- "Non-Thrombotic MI"
+chainDF$group[chainDF$i == 3] <- "sCAD"
 
 # Add annotation data:
 chainDF<-chainDF %>% left_join(metabKey)
 
 ############ Variable selection analysis ############
 # Plot prior distributions:
-priorProb<-data.frame(x=rbeta(1000000,5,100))
-priorTau<-data.frame(x=rgamma(1000000,1,1))
-priorTau$variance<-1/priorTau$x
-priorTau$sd<-sqrt(priorTau$var)
-priorTau$gamma<-sapply(priorTau$sd,function(x) rnorm(1,0,x))
+priorProb <- data.frame(x = rbeta(1000000, 5, 100))
+priorTau <- data.frame(x = rgamma(1000000, 1, 1))
+priorTau$variance <- 1 / priorTau$x
+priorTau$sd <- sqrt(priorTau$var)
+priorTau$gamma <- sapply(priorTau$sd, function(x) rnorm(1, 0, x))
 
-p1<-ggplot(priorProb,aes(x=x,y=..density..)) + 
-  geom_histogram(fill="grey60",color="black",bins=50) + 
-  theme_bw() + xlab("Value") + ylab("Density") + 
-  ggtitle(expression(paste("Prior for ",delta))) + 
+p1 <- ggplot(priorProb, aes(x = x, y = ..density..)) + 
+  geom_histogram(fill = "grey60", color = "black", bins = 50) + 
+  theme_bw() + xlab("Value") + ylab("Density") + ggtitle(expression(paste("Prior for ",delta))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
-p2<-ggplot(priorTau,aes(x=x,y=..density..)) + 
-  geom_histogram(fill="grey60",color="black",bins=50) + 
-  theme_bw() + xlab("Value") + ylab("Density") + xlim(-1,10) +
-  ggtitle(expression(paste("Prior for ",tau))) + 
+p2 <- ggplot(priorTau, aes(x = x, y = ..density..)) + 
+  geom_histogram(fill = "grey60", color = "black", bins = 50) + 
+  theme_bw() + xlab("Value") + ylab("Density") + xlim(-1, 10) + ggtitle(expression(paste("Prior for ", tau))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
-p3<-ggplot(priorTau,aes(x=log(variance),y=..density..)) + 
-  geom_histogram(fill="grey60",color="black",bins=50) + 
-  theme_bw() + xlab("Value") + ylab("Density") + 
-  ggtitle(expression(paste("Prior for ",log(sigma^2)))) + 
+p3 <- ggplot(priorTau, aes(x = log(variance), y = ..density..)) + 
+  geom_histogram(fill = "grey60", color = "black", bins = 50) + 
+  theme_bw() + xlab("Value") + ylab("Density") + ggtitle(expression(paste("Prior for ", log(sigma ^ 2)))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
-p4<-ggplot(priorTau,aes(x=gamma,y=..density..)) + 
-  geom_histogram(fill="grey60",color="black",bins=50) + 
-  theme_bw() + xlab("Value") + ylab("Density") + xlim(-15,15) +
-  ggtitle(expression(paste("Prior for ",gamma))) + 
+p4 <- ggplot(priorTau, aes(x = gamma, y = ..density..)) + 
+  geom_histogram(fill = "grey60", color = "black", bins = 50) + 
+  theme_bw() + xlab("Value") + ylab("Density") + xlim(-15, 15) + ggtitle(expression(paste("Prior for ", gamma))) + 
   theme(plot.title = element_text(hjust = 0.5))
 
 # png(file="Plots/priorDists.png",height=6,width=7,res=300,units="in")
@@ -430,21 +426,22 @@ gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
 # dev.off()
 
 # Plot some chains:
-p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=iter,y=value,color=chain)) + geom_line() + 
-  theme_bw() + xlim(1000,5000) + ylim(-16,1) + xlab("Iteration") + ylab(expression(beta))
-p2<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=iter,y=value,color=chain)) + geom_line() + 
-  theme_bw() + xlim(4900,5000) + ylim(-12,1) + xlab("Iteration") + ylab(expression(beta))
-p3<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value,fill=chain,y=..density..)) + 
-  geom_histogram(binwidth=.35,alpha=0.5,position="identity") + xlab(expression(beta)) +
-  ylab("Density") + xlim(-12,3) + theme_bw()
+set.seed(3)
+chainSamp <- sample(1:10, 5)
+p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
+           aes(x = iter, y = value, color = chain)) + geom_line() + 
+  theme_bw() + xlim(0, 1000) + ylim(-20, 1) + xlab("Iteration") + ylab(expression(beta))
+p2 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
+           aes(x = iter, y = value, color = chain)) + geom_line() + 
+  theme_bw() + xlim(400, 500) + ylim(-20, 1) + xlab("Iteration") + ylab(expression(beta))
+p3 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
+           aes(x = value, fill = chain, y = ..density..)) + 
+  geom_histogram(binwidth = .35,alpha = 0.5, position = "identity") + xlab(expression(beta)) +
+  ylab("Density") + xlim(-15, 3) + theme_bw()
 
 # png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
-lm<-rbind(c(1,1,1,1),
-          c(2,2,3,3))
-gridExtra::grid.arrange(p1,p2,p3,layout_matrix=lm)
+lm<-rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
+gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lm)
 # dev.off()
 
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
