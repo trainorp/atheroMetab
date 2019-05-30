@@ -273,8 +273,8 @@ sampSum <- sampSum %>% select(metabID, Metabolite, Name = `Full Name, synonym`, 
 # write.csv(sampSum, file = "Results/changeModelSum.csv", row.names = FALSE)
 
 # Temp save:
-save.image("working_20190113.RData")
-#LOH
+rm(samp, samp2, samp3, samp4, samp4Sum, samp4Sum2, sampSum, model)
+# save.image("working_20190113.RData")
 
 ############ T0 Bayesian model selection ############
 load("working_20190113.RData")
@@ -344,7 +344,7 @@ parallel::clusterExport(cl, list("y", "X", "p", "n", "nGrps", "rJAGSModel3"))
 
 # Do the distributed MCMC sampling:
 ptm <- proc.time()
-samp <- parallel::clusterApply(cl, 1:nChains, parWrapper)
+samps <- parallel::clusterApply(cl, 1:nChains, parWrapper)
 proc.time() - ptm
 parallel::stopCluster(cl)
 
@@ -353,10 +353,6 @@ save.image("working_20190121.RData")
 load("working_20190121.RData")
 
 # Make chain matricies
-# samp<-samp[-5]
-# nChains<-nChains-1
-# samps<-lapply(samp,function(x) x[[1]])
-samps <- samp
 chainMatrix1 <- as.matrix(samps[[1]])
 
 # Wide to long:
@@ -391,7 +387,8 @@ chainDF$group <- "Non-Thrombotic MI"
 chainDF$group[chainDF$i == 3] <- "sCAD"
 
 # Add annotation data:
-chainDF<-chainDF %>% left_join(metabKey)
+chainDF <- chainDF %>% left_join(metabKey)
+rm(samps)
 
 ############ Variable selection analysis ############
 rJAGSModel3Priors <- "
@@ -461,20 +458,20 @@ set.seed(3)
 chainSamp <- sample(1:10, 5)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(0, 1000) + ylim(-20, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 1500) + ylim(-19, 1) + xlab("Iteration") + ylab(expression(beta))
 p2 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(400, 500) + ylim(-20, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 600) + ylim(-13, 1) + xlab("Iteration") + ylab(expression(beta))
 p3 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = value, fill = chain, y = ..density..)) + 
-  geom_histogram(binwidth = .35,alpha = 0.5, position = "identity") + xlab(expression(beta)) +
+  geom_histogram(binwidth = .35, alpha = 0.55, position = "identity", color = rgb(0, 0, 0, .4)) + xlab(expression(beta)) +
   ylab("Density") + xlim(-15, 3) + theme_bw()
 
 # png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
 lm<-rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
 gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lm)
 # dev.off()
-
+# LOH
 p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
            aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
    theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m21"]) + ylim(0,1.35) +
