@@ -67,7 +67,8 @@ df1b <- df1 %>% filter(!is.na(group))
 df2b <- df2 %>% filter(!is.na(group))
 
 ############ QC samples throughout run ############
-qcMeans <- qcDFL %>% group_by(metabID) %>% summarize(meanConc = mean(Concentration))
+qcMeans <- qcDFL %>% group_by(metabID) %>% 
+  summarize(meanConc = mean(Concentration), sdConc = sd(Concentration), CV = sdConc / meanConc * 100)
 qcMeansECDF <- ecdf(qcMeans$meanConc)
 qcMeans$prob <- qcMeansECDF(qcMeans$meanConc)
 
@@ -84,11 +85,27 @@ ggplot(qcPlotDF,aes(x = samp,y = log(Concentration), group = Metabolite, color =
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
 #dev.off()
 
+# CV's:
+qcMeans <- qcMeans %>% left_join(metabKey)
+qcMeans <- qcMeans %>% arrange(CV)
+qcMeans$Metabolite <- factor(qcMeans$Metabolite, levels = qcMeans$Metabolite)
+
+# png(file = "Plots/qcPlot2.png", height = 5*1.5, width = 4*1.5, units = "in", res = 300)
+ggplot(qcMeans, aes(x = Metabolite, y = CV)) + geom_point() + geom_hline(yintercept = 25, color = "darkred", lty = 2) +
+  coord_flip() + theme_bw()
+# dev.off()
+
+# write.csv(qcMeans, file = "Results/QCCVs.csv", row.names = FALSE)
+
+goodMetabs <- qcMeans$metabID[qcMeans$CV < 25] 
+
+rm(qcDF, qcDFL, qcMeans, qcPlotDF, qcMeansECDF)
+
 ############ Summary statistics ############
 summaryFun2 <- function(metab){
   tab1 <- df1b %>% select(group, timept, x = metab) %>% 
     group_by(group, timept) %>% summarize(mean = mean(x, na.rm = TRUE),sd = sd(x, na.rm = TRUE),
-      min = min(x, na.rm = TRUE), max = max(x, na.rm = TRUE),median = median(x, na.rm = TRUE),
+      min = min(x, na.rm = TRUE), max = max(x, na.rm = TRUE), median = median(x, na.rm = TRUE),
       IQR = IQR(x, na.rm = TRUE))
   tab1$metabID <- metab
   return(tab1)
@@ -103,7 +120,6 @@ names(summaryDFT0)[!names(summaryDFT0) %in% c("group", "metabID")] <-
 names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group", "metabID")] <-
   paste(names(summaryDFTFU)[!names(summaryDFTFU) %in% c("group", "metabID")], "TFU", sep = "_")
 summaryDF <- summaryDFT0 %>% left_join(summaryDFTFU)
-rm(summaryDFT0, summaryDFTFU)
 
 # Make pretty:
 summaryDF$meanSD_T0 <- paste0(format(summaryDF$mean_T0, digits = 2, nsmall = 2, trim = TRUE),
@@ -124,11 +140,13 @@ summaryDF$group <- factor(summaryDF$group, levels = c("sCAD", "Non-Thrombotic MI
                       "Indeterminate", "Thrombotic MI"))
 summaryDF$metabID <- factor(summaryDF$metabID, levels = metabKey$metabID)
 summaryDF <- summaryDF %>% arrange(metabID, group)
-#write.csv(summaryDF,file="Results/MetabSummaryDF.csv",row.names=FALSE)
+# write.csv(summaryDF, file = "Results/MetabSummaryDF.csv", row.names = FALSE)
+
+rm(summaryDFTFU, summaryDFT0, summaryDF)
 
 ############ Untargeted vs MRM ############
 # Make comparison data frame from targeted data:
-compDF <- df2 %>% gather(key = "metabID", value = "conc", -samp)
+compDF <- df2 %>% gather(key = "metabID", value = "conc", -samp, -(ptid:oldGroup))
 compDF$conc <- as.numeric(compDF$conc)
 tempSamp <- str_split(compDF$samp, "-", simplify = TRUE)[,1:2]
 tempSamp <- paste(tempSamp[,1], tempSamp[,2], sep = "-")
@@ -176,15 +194,44 @@ for(i in 1:nrow(rDF)){
 gridExtra::grid.arrange(grobs = plotList, ncol = 3)
 # dev.off()
 
+rm(plotList, compDF)
+
 ############ Correlation between metabolites ############
-# Make this separate for 
-metabCor <- cor(df2b[,names(df2b) %in% metabKey$metabID], method = "spearman")
-rownames(metabCor) <- colnames(metabCor) <- metabKey$Metabolite
+metabCorT0 <- cor(df2b[grepl("T0", df2b$samp), names(df2b) %in% metabKey$metabID], method = "spearman")
+metabCorTFU <- cor(df2b[grepl("TFU", df2b$samp), names(df2b) %in% metabKey$metabID], method = "spearman")
+rownames(metabCorT0) <- colnames(metabCorT0) <- rownames(metabCorTFU) <- colnames(metabCorTFU) <- metabKey$Metabolite
 # write.csv(metabCor, file = "Results/metabCor.csv", row.names = FALSE)
 
-# Correlation plot:
-# png(file = "Plots/absCor.png", height = 5, width = 5, units = "in", res = 300)
-corrplot::corrplot(metabCor, order = "hclust", tl.cex = .4)
+# Correlation plots:
+# png(file = "Plots/absCorT0.png", height = 5, width = 5, units = "in", res = 300)
+corrplot::corrplot(metabCorT0, order = "hclust", tl.cex = .4)
+# dev.off()
+
+# png(file = "Plots/absCorTFU.png", height = 5, width = 5, units = "in", res = 300)
+corrplot::corrplot(metabCorTFU, order = "hclust", tl.cex = .4)
+# dev.off()
+
+############ Heatmaps ############
+# Make DF's
+df2bT0 <- as.data.frame(df2b[grepl("T0", df2b$samp), names(df2b) %in% metabKey$metabID])
+df2bT0names <- df2b[grepl("T0", df2b$samp), match(c("group", "ptid"), names(df2b))]
+rownames(df2bT0) <- paste(df2bT0names$group, df2bT0names$ptid, sep = "_")
+colnames(df2bT0) <- metabKey$Metabolite[match(colnames(df2bT0), metabKey$metabID)]
+
+df2bTFU <- as.data.frame(df2b[grepl("TFU", df2b$samp), names(df2b) %in% metabKey$metabID])
+df2bTFUnames <- df2b[grepl("TFU", df2b$samp), match(c("group", "ptid"), names(df2b))]
+rownames(df2bTFU) <- paste(df2bTFUnames$group, df2bTFUnames$ptid, sep = "_")
+colnames(df2bTFU) <- metabKey$Metabolite[match(colnames(df2bTFU), metabKey$metabID)]
+
+# Make plots
+# png(file = "Plots/heatmapT0.png", height = 6, width = 6, units = "in", res = 300)
+heatmap(scale(as.matrix(df2bT0)), cexRow = .5 * (0.2 + 1/log10(nrow(df2bT0))), 
+        cexCol = .5 * (0.2 + 1/log10(ncol(df2bT0))))
+# dev.off()
+
+# png(file = "Plots/heatmapTFU.png", height = 6, width = 6, units = "in", res = 300)
+heatmap(scale(as.matrix(df2bTFU)), cexRow = .5 * (0.2 + 1/log10(nrow(df2bTFU))), 
+        cexCol = .5 * (0.2 + 1/log10(ncol(df2bTFU))))
 # dev.off()
 
 ############ Change score linear model ############
@@ -207,7 +254,7 @@ model{
   
   # Prior for beta:
   for(j in 1:4){
-    beta[j] ~ dnorm(0,0.0001)
+    beta[j] ~ dnorm(0, 0.0001)
   }
   
   # Prior for the variance:
@@ -273,11 +320,12 @@ sampSum <- sampSum %>% select(metabID, Metabolite, Name = `Full Name, synonym`, 
 # write.csv(sampSum, file = "Results/changeModelSum.csv", row.names = FALSE)
 
 # Temp save:
-rm(samp, samp2, samp3, samp4, samp4Sum, samp4Sum2, sampSum, model)
+rm(samp, samp2, samp3, samp4, samp4Sum, sampSum, model)
 # save.image("working_20190113.RData")
 
 ############ T0 Bayesian model selection ############
 load("working_20190113.RData")
+
 rJAGSModel3 <- "
 model{
   for(i in 1:n){
@@ -316,6 +364,7 @@ df2bT0$group <- factor(df2bT0$group, levels = c("Thrombotic MI", "Non-Thrombotic
 y <- as.numeric(as.factor(df2bT0$group))
 nGrps <- length(unique(y))
 X <- scale(df2bT0[,grepl("m\\d", names(df2bT0))])
+X <- X[,colnames(X) %in% goodMetabs]
 p <- dim(X)[2]
 n <- dim(X)[1]
 
@@ -328,7 +377,7 @@ parWrapper<-function(seedIter){
   codaSamples<-tryCatch({
       codaSamples <- rjags::coda.samples(model,
            variable.names = c("logdens", "prob", "nVarsInc", "delta", "tau", "SD", "beta0", "beta"),
-           n.iter = 20000, thin = 10)
+           n.iter = 25000, thin = 10)
     },error=function(e){
       codaSamples <- e
       return(codaSamples)
@@ -350,6 +399,7 @@ parallel::stopCluster(cl)
 
 # Save result:
 save.image("working_20190121.RData")
+# LOH:
 load("working_20190121.RData")
 
 # Make chain matricies
