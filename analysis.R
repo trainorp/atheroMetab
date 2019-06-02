@@ -197,12 +197,18 @@ gridExtra::grid.arrange(grobs = plotList, ncol = 3)
 rm(plotList, compDF)
 
 ############ Correlation between metabolites ############
+metabCor <- cor(df2b[, names(df2b) %in% metabKey$metabID], method = "spearman")
 metabCorT0 <- cor(df2b[grepl("T0", df2b$samp), names(df2b) %in% metabKey$metabID], method = "spearman")
 metabCorTFU <- cor(df2b[grepl("TFU", df2b$samp), names(df2b) %in% metabKey$metabID], method = "spearman")
-rownames(metabCorT0) <- colnames(metabCorT0) <- rownames(metabCorTFU) <- colnames(metabCorTFU) <- metabKey$Metabolite
+rownames(metabCor) <- colnames(metabCor) <- rownames(metabCorT0) <- colnames(metabCorT0) <- rownames(metabCorTFU) <- 
+  colnames(metabCorTFU) <- metabKey$Metabolite
 # write.csv(metabCor, file = "Results/metabCor.csv", row.names = FALSE)
 
 # Correlation plots:
+# png(file = "Plots/absCor.png", height = 5, width = 5, units = "in", res = 300)
+corrplot::corrplot(metabCor, order = "hclust", tl.cex = .4)
+# dev.off()
+
 # png(file = "Plots/absCorT0.png", height = 5, width = 5, units = "in", res = 300)
 corrplot::corrplot(metabCorT0, order = "hclust", tl.cex = .4)
 # dev.off()
@@ -224,13 +230,13 @@ rownames(df2bTFU) <- paste(df2bTFUnames$group, df2bTFUnames$ptid, sep = "_")
 colnames(df2bTFU) <- metabKey$Metabolite[match(colnames(df2bTFU), metabKey$metabID)]
 
 # Make plots
-# png(file = "Plots/heatmapT0.png", height = 6, width = 6, units = "in", res = 300)
-heatmap(scale(as.matrix(df2bT0)), cexRow = .5 * (0.2 + 1/log10(nrow(df2bT0))), 
+png(file = "Plots/heatmapT0.png", height = 6, width = 6, units = "in", res = 300)
+heatmap(scale(as.matrix(df2bT0), scale = FALSE), cexRow = .5 * (0.2 + 1/log10(nrow(df2bT0))), 
         cexCol = .5 * (0.2 + 1/log10(ncol(df2bT0))))
-# dev.off()
+dev.off()
 
 # png(file = "Plots/heatmapTFU.png", height = 6, width = 6, units = "in", res = 300)
-heatmap(scale(as.matrix(df2bTFU)), cexRow = .5 * (0.2 + 1/log10(nrow(df2bTFU))), 
+heatmap(scale(as.matrix(df2bTFU), scale = FALSE), cexRow = .5 * (0.2 + 1/log10(nrow(df2bTFU))), 
         cexCol = .5 * (0.2 + 1/log10(ncol(df2bTFU))))
 # dev.off()
 
@@ -295,7 +301,7 @@ ciFun <- function(x){
   quants2 <- HDInterval::hdi(x)
   quants3 <- HDInterval::hdi(x, credMass = .9)
   
-  data.frame(mean = mean(x), median = median(x), lq = as.numeric(quants[1]),
+  data.frame(mode = MCMCglmm::posterior.mode(x), mean = mean(x), median = median(x), lq = as.numeric(quants[1]),
              uq = as.numeric(quants[2]), lq2 = as.numeric(quants2[1]), uq2 = as.numeric(quants2[2]),
              lq3 = as.numeric(quants3[1]), uq3 = as.numeric(quants3[2]))
 }
@@ -303,10 +309,10 @@ samp4Sum <- samp4 %>% group_by(metab, effect) %>% do(ciFun(.$value))
 
 # Join metabolite names:
 sampSum <- samp4Sum
-sampSum$Est <- paste0(sapply(samp4Sum$median, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
+sampSum$Est <- paste0(sapply(samp4Sum$mode, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
       sapply(samp4Sum$lq2, FUN = function(x) format(x, digits = 2, nsmall = 2)), ", ",
       sapply(samp4Sum$uq2, FUN = function(x) format(x, digits = 2, nsmall = 2)), ")")
-sampSum$Est2 <- paste0(sapply(samp4Sum$median, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
+sampSum$Est2 <- paste0(sapply(samp4Sum$mode, FUN = function(x) format(x, digits = 2, nsmall = 2))," (",
                       sapply(samp4Sum$lq3, FUN = function(x) format(x, digits = 2, nsmall = 2)), ", ",
                       sapply(samp4Sum$uq3, FUN = function(x) format(x, digits = 2, nsmall = 2)), ")")
 sampSum <- sampSum %>% select(metabID = metab, effect, Est, Est2)
@@ -318,6 +324,37 @@ sampSum <- sampSum %>% select(-Est) %>% spread(key = effect, value = Est2)
 sampSum <- sampSum %>% select(metabID, Metabolite, Name = `Full Name, synonym`, sCAD, T2,
                             Ind, T1, T1vssCAD, T1vsT2, T1vsInd)
 # write.csv(sampSum, file = "Results/changeModelSum.csv", row.names = FALSE)
+
+# Make HDI plots:
+hdiPlots <- metabKey %>% select(metabID, Metabolite, `Full Name, synonym`) %>% 
+  right_join(samp4Sum %>% filter(effect %in% c("T1", "Ind", "T2", "sCAD")), by = c("metabID" = "metab"))
+hdiPlots <- hdiPlots %>% group_by(Metabolite) %>% mutate(meanMode = mean(mode))
+hdiPlots <- hdiPlots %>% arrange(desc(meanMode))
+hdiPlots$Metabolite <- factor(hdiPlots$Metabolite, levels = unique(hdiPlots$Metabolite))
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[1:10]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[11:20]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[21:30]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[31:40]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[41:50]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[51:45]), aes(x = effect, y = mode, color = effect)) + 
+  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
+  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
 
 # Temp save:
 rm(samp, samp2, samp3, samp4, samp4Sum, sampSum, model)
