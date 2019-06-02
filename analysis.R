@@ -391,7 +391,7 @@ model{
     beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r] ~ dnorm(0, 0.05)
+    beta0[r] ~ dnorm(0, tau2)
   }
   for(j in 1:p){
     delta[1,j] ~ dbern(prob)
@@ -402,7 +402,8 @@ model{
   }
   nVarsInc <- sum(delta[1,1:p])
   prob ~ dbeta(5, 100)
-  tau ~ dgamma(1, 1)
+  tau ~ dgamma(2, 2)
+  tau2 ~ dgamma(2, 2)
   SD <- sqrt(1 / tau)
 }"
 
@@ -424,7 +425,7 @@ parWrapper<-function(seedIter){
   codaSamples<-tryCatch({
       codaSamples <- rjags::coda.samples(model,
            variable.names = c("logdens", "prob", "nVarsInc", "delta", "tau", "SD", "beta0", "beta"),
-           n.iter = 25000, thin = 10)
+           n.iter = 100000, thin = 10)
     },error=function(e){
       codaSamples <- e
       return(codaSamples)
@@ -434,7 +435,7 @@ parWrapper<-function(seedIter){
 }
 
 # Create the cluster and export needed variables/data:
-nChains <- 16
+nChains <- 8
 cl <- parallel::makeCluster(8)
 parallel::clusterExport(cl, list("y", "X", "p", "n", "nGrps", "rJAGSModel3"))
 
@@ -623,41 +624,79 @@ rJAGSModel2 <- "
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
+      pi[r,i] <- exp(beta0[r] + sum(beta[r,1:p] * X[i,1:p]))
     }
     # Likelihood:
-    y[i]~dcat(pi[1:nGrps,i])
-    logdensi[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
+    y[i] ~ dcat(pi[1:nGrps,i])
+    logdensi[i] <- logdensity.cat(y[i], pi[1:nGrps,i])
   }
-  logdens<-sum(logdensi)
+  logdens <- sum(logdensi)
   
   # Priors:
-  beta0[1]<-0
+  beta0[1] <- 0
   for(j in 1:p){
-    beta[1,j]<-0
+    beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r]~dnorm(0,0.01)
+    beta0[r] ~ dnorm(0, 0.01)
   }
   for(j in 1:p){
     for(r in 2:nGrps){
-      beta[r,j] ~ dnorm(0,tau)
+      beta[r,j] ~ dnorm(0, tau)
     }
   }
-  tau~dgamma(2,1)
-  SD<-sqrt(1/tau)
+  tau ~ dgamma(2,1)
+  SD <- sqrt(1 / tau)
 }"
 
-tropT0<-oxPLDF %>% select(ptid,tropT0) %>% mutate(logTrop=log(tropT0+.0001)) %>% select(-tropT0)
-df2bT0<-df2bT0 %>% left_join(tropT0)
-X<-scale(df2bT0[,names(df2bT0) %in% c(metabInclude,"logTrop")])
+tropT0 <- oxPLDF %>% select(ptid, tropT0) %>% mutate(logTrop = log(tropT0 + .0001)) %>% select(-tropT0)
+df2bT0 <- df2bT0 %>% left_join(tropT0)
+X <- scale(df2bT0[,names(df2bT0) %in% c(metabInclude, "logTrop")])
 # X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
-p<-dim(X)[2]
-cat("p is ",p,"\n")
+p <- dim(X)[2]
+
+# Model priors:
+rJAGSModel2Priors <- "
+model{
+  # Priors:
+  beta0[1] <- 0
+  for(j in 1:p){
+    beta[1,j] <- 0
+  }
+  for(r in 2:nGrps){
+    beta0[r] ~ dnorm(0, tau2)
+  }
+  for(j in 1:p){
+    for(r in 2:nGrps){
+      beta[r,j] ~ dnorm(0, tau)
+    }
+  }
+  tau ~ dgamma(2, 2)
+  tau2 ~ dgamma(2, 2)
+  SD <- sqrt(1 / tau)
+}"
+priorModel<-rjags::jags.model(file = textConnection(rJAGSModel2Priors),
+                         data = list(p = p, nGrps = nGrps), n.chains = 6, n.adapt = 10000)
+codaSamplesPriorModel <- rjags::coda.samples(priorModel,
+              variable.names = c("tau", "SD", "beta0", "beta"), n.iter = 100000, thin = 10)
+codaSamplesPriorModel <- as.data.frame(do.call("rbind", codaSamplesPriorModel))
+codaSamplesPriorModel <- codaSamplesPriorModel[,!grepl("beta\\[1,", names(codaSamplesPriorModel))]
+codaSamplesPriorModel$`beta0[1]` <- NULL
+
+ggplot(codaSamplesPriorModel, aes(x = `beta[2,1]`)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = `beta0[2]`)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = tau)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = SD)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+
+codaSamplesPriorModel[, grepl("beta", names(codaSamplesPriorModel))]
 
 # Sample for cross-validation
 library(doParallel)
-cl<-makeCluster(4)
+cl <- makeCluster(4)
 registerDoParallel(cl)
 ptm<-proc.time()
 codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
