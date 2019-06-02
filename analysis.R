@@ -230,10 +230,10 @@ rownames(df2bTFU) <- paste(df2bTFUnames$group, df2bTFUnames$ptid, sep = "_")
 colnames(df2bTFU) <- metabKey$Metabolite[match(colnames(df2bTFU), metabKey$metabID)]
 
 # Make plots
-png(file = "Plots/heatmapT0.png", height = 6, width = 6, units = "in", res = 300)
+# png(file = "Plots/heatmapT0.png", height = 6, width = 6, units = "in", res = 300)
 heatmap(scale(as.matrix(df2bT0), scale = FALSE), cexRow = .5 * (0.2 + 1/log10(nrow(df2bT0))), 
         cexCol = .5 * (0.2 + 1/log10(ncol(df2bT0))))
-dev.off()
+# dev.off()
 
 # png(file = "Plots/heatmapTFU.png", height = 6, width = 6, units = "in", res = 300)
 heatmap(scale(as.matrix(df2bTFU), scale = FALSE), cexRow = .5 * (0.2 + 1/log10(nrow(df2bTFU))), 
@@ -331,33 +331,43 @@ hdiPlots <- metabKey %>% select(metabID, Metabolite, `Full Name, synonym`) %>%
 hdiPlots <- hdiPlots %>% group_by(Metabolite) %>% mutate(meanMode = mean(mode))
 hdiPlots <- hdiPlots %>% arrange(desc(meanMode))
 hdiPlots$Metabolite <- factor(hdiPlots$Metabolite, levels = unique(hdiPlots$Metabolite))
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[1:10]), aes(x = effect, y = mode, color = effect)) + 
+
+hdiPlots$effect <- factor(hdiPlots$effect)
+levels(hdiPlots$effect)[match(c("T1", "Ind", "T2", "sCAD"), levels(hdiPlots$effect))] <- 
+  c("Thrombotic MI","Indeterminate MI", "Non-Thrombotic MI", "Stable CAD")
+hdiPlots$effect <- factor(hdiPlots$effect, levels = c("Thrombotic MI","Indeterminate MI", "Non-Thrombotic MI", "Stable CAD"))
+
+p1 <- ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[1:11]), aes(x = effect, y = mode, color = effect)) + 
   geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[11:20]), aes(x = effect, y = mode, color = effect)) + 
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + facet_wrap(~Metabolite, nrow = 1) + 
+  theme_bw() + xlab("") + ylab("") + theme(legend.position = "none")
+
+p2 <- ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[12:22]), aes(x = effect, y = mode, color = effect)) + 
   geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[21:30]), aes(x = effect, y = mode, color = effect)) + 
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + facet_wrap(~Metabolite, nrow = 1) + 
+  theme_bw() + xlab("") + ylab("") + theme(legend.position = "none")
+
+p3 <- ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[23:33]), aes(x = effect, y = mode, color = effect)) + 
   geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[31:40]), aes(x = effect, y = mode, color = effect)) + 
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + facet_wrap(~Metabolite, nrow = 1) + 
+  theme_bw() + xlab("") + ylab("") + theme(legend.position = "none")
+
+p4 <- ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[34:44]), aes(x = effect, y = mode, color = effect)) + 
   geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[41:50]), aes(x = effect, y = mode, color = effect)) + 
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + facet_wrap(~Metabolite, nrow = 1) + 
+  theme_bw() + xlab("") + ylab("") + theme(legend.position = "none")
+
+p5 <- ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[45:55]), aes(x = effect, y = mode, color = effect)) + 
   geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
-ggplot(hdiPlots %>% filter(Metabolite %in% levels(hdiPlots$Metabolite)[51:45]), aes(x = effect, y = mode, color = effect)) + 
-  geom_point() + geom_errorbar(aes(ymin = lq3, ymax = uq3), width = .2) +
-  geom_hline(yintercept = 0, lty = 2) + coord_flip() + 
-  facet_wrap(~Metabolite, ncol = 1) + theme_bw() 
+  geom_hline(yintercept = 0, lty = 2) + coord_flip() + facet_wrap(~Metabolite, nrow = 1) + 
+  theme_bw() + xlab("") + ylab("") + theme(legend.position = "none")
+
+# png(file = "Plots/changeModelSum.png", height = 8 * 1.5, width = 14 * 1.5, units = "in", res = 300)
+gridExtra::grid.arrange(p1, p2, p3, p4, p5, layout_matrix = matrix(c(1:5), nrow = 5))
+# dev.off()
 
 # Temp save:
-rm(samp, samp2, samp3, samp4, samp4Sum, sampSum, model)
+rm(samp, samp2, samp3, samp4, samp4Sum, sampSum, model, p1, p2, p3, p4, p5, hdiPlots)
 # save.image("working_20190113.RData")
 
 ############ T0 Bayesian model selection ############
@@ -424,7 +434,7 @@ parWrapper<-function(seedIter){
 }
 
 # Create the cluster and export needed variables/data:
-nChains <- 20
+nChains <- 16
 cl <- parallel::makeCluster(8)
 parallel::clusterExport(cl, list("y", "X", "p", "n", "nGrps", "rJAGSModel3"))
 
@@ -435,12 +445,8 @@ proc.time() - ptm
 parallel::stopCluster(cl)
 
 # Save result:
-save.image("working_20190121.RData")
-# LOH:
+# save.image("working_20190121.RData")
 load("working_20190121.RData")
-
-# Make chain matricies
-chainMatrix1 <- as.matrix(samps[[1]])
 
 # Wide to long:
 chainDF <- data.frame()
@@ -466,7 +472,8 @@ chainDF$paramType <- str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,1
 chainDF <- chainDF[!chainDF$paramType %in% c("logdens", "nVarsInc", "prob"),]
 chainDF$i <- gsub("\\]", "", str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,2])
 chainDF$j <- gsub("\\]", "", str_split(chainDF$parameter, "\\[|\\,", simplify = TRUE)[,3])
-chainDF$metabID <- paste0("m", chainDF$j)
+goodMetabDF <- data.frame(metabID = colnames(X), j = as.character(1:length(colnames(X))))
+chainDF <- chainDF %>% left_join(goodMetabDF)
 
 # Filter out un-neaded due to level coding:
 chainDF <- chainDF[!(chainDF$paramType == "beta" & chainDF$i == "1"),]
@@ -545,71 +552,74 @@ set.seed(3)
 chainSamp <- sample(1:10, 5)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 1500) + ylim(-19, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 1500) + ylim(-25, 1) + xlab("Iteration") + ylab(expression(beta))
 p2 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 600) + ylim(-13, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 600) + ylim(-11, 1) + xlab("Iteration") + ylab(expression(beta))
 p3 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = value, fill = chain, y = ..density..)) + 
   geom_histogram(binwidth = .35, alpha = 0.55, position = "identity", color = rgb(0, 0, 0, .4)) + xlab(expression(beta)) +
   ylab("Density") + xlim(-15, 3) + theme_bw()
 
-# png(file="Plots/cortisolBetaChain.png",height=6,width=9,res=300,units="in")
-lm<-rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
-gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lm)
+# png(file = "Plots/cortisolBetaChain.png", height = 6, width = 9, res = 300, units = "in")
+lmat <- rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
+gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lmat)
 # dev.off()
-# LOH
-p1<-ggplot(chainDF %>% filter(metabID=="m21" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-   theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m21"]) + ylim(0,1.35) +
-  xlim(-15,2.5) + theme(plot.title = element_text(hjust = 0.5))
-p2<-ggplot(chainDF %>% filter(metabID=="m16" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m16"]) + ylim(0,1.35) +
-  xlim(-15,2.5) + theme(plot.title = element_text(hjust = 0.5))
-p3<-ggplot(chainDF %>% filter(metabID=="m32" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m32"]) + ylim(0,2.5) +
-  xlim(-7,7) + theme(plot.title = element_text(hjust = 0.5))
-p4<-ggplot(chainDF %>% filter(metabID=="m54" & paramType=="beta" & group=="Non-Thrombotic MI"),
-           aes(x=value,y=..density..)) + geom_histogram(bins=35,color="black",fill="grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID=="m54"]) + ylim(0,3.5) +
-  xlim(-5,5) + theme(plot.title = element_text(hjust = 0.5))
 
-# png(file="Plots/betaHistograms.png",height=7,width=8,res=300,units="in")
-gridExtra::grid.arrange(p1,p2,p3,p4,nrow=2,ncol=2)
-#dev.off()
+p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI"),
+           aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
+   theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m21"]) + ylim(0, 1) +
+  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+p2 <- ggplot(chainDF %>% filter(metabID == "m16" & paramType == "beta" & group == "Non-Thrombotic MI"),
+           aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m16"]) + ylim(0, 1.5) +
+  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+p3 <- ggplot(chainDF %>% filter(metabID == "m32" & paramType == "beta" & group == "Non-Thrombotic MI"),
+           aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m32"]) + ylim(0, 2.5) +
+  xlim(-7, 7) + theme(plot.title = element_text(hjust = 0.5))
+p4 <- ggplot(chainDF %>% filter(metabID == "m54" & paramType == "beta" & group == "Non-Thrombotic MI"),
+           aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m54"]) + ylim(0, 3.5) +
+  xlim(-5, 5) + theme(plot.title = element_text(hjust = 0.5))
+
+# png(file = "Plots/betaHistograms.png", height = 7, width = 8, res = 300, units = "in")
+gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
+# dev.off()
 
 # ACF:
-# png(file="Plots/MCMCChainACF.png",height=5,width=6,res=300,units="in")
-acf(chainMatrix1[,"beta[3,21]"],na.action=na.omit)
+acfDF <- chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain == 1)
+# png(file = "Plots/MCMCChainACF.png", height = 5, width = 6, res = 300, units = "in")
+acf(acfDF$value, na.action = na.omit, main = "ACF for Cortisol Non-Thrombotic Effect")
 # dev.off()
 
 # Likelihood:
-rf<-colorRampPalette(rev(RColorBrewer::brewer.pal(11,'Spectral')))
-hexbin::hexbinplot(logdens~SD,data=chainDFHigher,colramp=rf)
-hexbin::hexbinplot(logdens~nVarsInc,data=chainDFHigher,colramp=rf)
+rf <- colorRampPalette(rev(RColorBrewer::brewer.pal(11, 'Spectral')))
+hexbin::hexbinplot(logdens ~ SD, data = chainDFHigher, colramp = rf)
+hexbin::hexbinplot(logdens ~ nVarsInc, data = chainDFHigher, colramp = rf)
 
 # Generate parameter summary:
-chainParamSum<-chainDF %>% group_by(parameter,paramType,metabID,Metabolite,group) %>% 
-  summarize(mean=mean(value))
+chainParamSum <- chainDF %>% group_by(parameter, paramType, metabID, Metabolite, group) %>% 
+  summarize(mean = mean(value))
 
-cpsTemp<-chainParamSum %>% filter(paramType=="delta") %>% arrange(desc(mean))
-cpsTemp2<-cpsTemp %>% arrange(mean)
-cpsTemp2$Metabolite<-factor(cpsTemp2$Metabolite,levels=cpsTemp2$Metabolite)
+cpsTemp <- chainParamSum %>% filter(paramType == "delta") %>% arrange(desc(mean))
+cpsTemp2 <- cpsTemp %>% arrange(mean)
+cpsTemp2$Metabolite <- factor(cpsTemp2$Metabolite, levels = cpsTemp2$Metabolite)
 
-# png(file="Plots/SVSSPosteriorMean.png",height=7,width=8,res=300,units="in")
-ggplot(cpsTemp2,aes(x=Metabolite,y=mean))+
-  geom_point()+ ylab(expression(paste("Posterior Mean of ",delta))) + theme_bw() + coord_flip() 
+# png(file = "Plots/SVSSPosteriorMean.png", height = 7, width = 8, res = 300, units = "in")
+ggplot(cpsTemp2, aes(x = Metabolite, y = mean))+
+  geom_point() + ylab(expression(paste("Posterior Mean of ", delta))) + theme_bw() + coord_flip() 
 # dev.off()
 
-save.image(file="working_20190223.RData")
+rm(chainDF, chainDFHigher, chainDFTemp, p1, p2, p3, p4, acfDF)
+save.image(file = "working_20190223.RData")
 
 ############ T0 Bayesian model fitting ############
-load(file="working_20190223.RData")
+# LOH 
+load(file = "working_20190223.RData")
 
-metabInclude<-cpsTemp$metabID[1:15]
-rJAGSModel2<-"
+metabInclude <- cpsTemp$metabID[1:15]
+rJAGSModel2 <- "
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
