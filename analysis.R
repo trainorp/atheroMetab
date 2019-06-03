@@ -553,14 +553,14 @@ set.seed(3)
 chainSamp <- sample(1:10, 5)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 1500) + ylim(-25, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 1500) + ylim(-7, 1) + xlab("Iteration") + ylab(expression(beta))
 p2 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 600) + ylim(-11, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 600) + ylim(-5, 1) + xlab("Iteration") + ylab(expression(beta))
 p3 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = value, fill = chain, y = ..density..)) + 
   geom_histogram(binwidth = .35, alpha = 0.55, position = "identity", color = rgb(0, 0, 0, .4)) + xlab(expression(beta)) +
-  ylab("Density") + xlim(-15, 3) + theme_bw()
+  ylab("Density") + xlim(-8, 3) + theme_bw()
 
 # png(file = "Plots/cortisolBetaChain.png", height = 6, width = 9, res = 300, units = "in")
 lmat <- rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
@@ -570,19 +570,19 @@ gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lmat)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
    theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m21"]) + ylim(0, 1) +
-  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+  xlim(-7, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 p2 <- ggplot(chainDF %>% filter(metabID == "m16" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m16"]) + ylim(0, 1.5) +
-  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m16"]) + ylim(0, 3.25) +
+  xlim(-7, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 p3 <- ggplot(chainDF %>% filter(metabID == "m32" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m32"]) + ylim(0, 2.5) +
-  xlim(-7, 7) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m32"]) + ylim(0, 4.25) +
+  xlim(-4, 4) + theme(plot.title = element_text(hjust = 0.5))
 p4 <- ggplot(chainDF %>% filter(metabID == "m54" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m54"]) + ylim(0, 3.5) +
-  xlim(-5, 5) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m54"]) + ylim(0, 7) +
+  xlim(-2.5, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 
 # png(file = "Plots/betaHistograms.png", height = 7, width = 8, res = 300, units = "in")
 gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
@@ -638,14 +638,15 @@ model{
     beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r] ~ dnorm(0, 0.01)
+    beta0[r] ~ dnorm(0, tau2)
   }
   for(j in 1:p){
     for(r in 2:nGrps){
       beta[r,j] ~ dnorm(0, tau)
     }
   }
-  tau ~ dgamma(2,1)
+  tau ~ dgamma(2,2)
+  tau2 ~ dgamma(2,2)
   SD <- sqrt(1 / tau)
 }"
 
@@ -692,30 +693,49 @@ ggplot(codaSamplesPriorModel, aes(x = tau)) + geom_histogram(bins = 60, color = 
 ggplot(codaSamplesPriorModel, aes(x = SD)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
   theme_bw()
 
-codaSamplesPriorModel[, grepl("beta", names(codaSamplesPriorModel))]
 
 # Sample for cross-validation
 library(doParallel)
-cl <- makeCluster(4)
+cl <- makeCluster(8)
 registerDoParallel(cl)
-ptm<-proc.time()
-codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
-  X2<-X[-i,]
-  n<-dim(X2)[1]
+ptm <- proc.time()
+cvList <- foreach(i = 1:nrow(X), .inorder = FALSE) %dopar% {
+  X2 <- X[-i,]
+  n <- dim(X2)[1]
   set.seed(33333)
-  model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                           data=list(y=y,X=X2,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+  model <- rjags::jags.model(file = textConnection(rJAGSModel2),
+                           data = list(y = y, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 1, n.adapt = 1000)
   
-  codaSamples<-rjags::coda.samples(model,
-                                   variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+  codaSamples <- rjags::coda.samples(model,
+                                   variable.names = c("logdens", "tau", "SD", "beta0", "beta"), 
+                                   n.iter = 1000, thin = 10)
   
   # Make into one MCMC chain:
-  codaSamples<-as.data.frame(do.call("rbind",codaSamples))
-  codaSamples$lo<-i
-  codaSamples
+  codaSamples <- as.data.frame(do.call("rbind", codaSamples))
+  
+  # Calculate group probabilities from LOO-CV posteriors
+  groupProbsList <- list()
+  for(j in 1:nrow(codaSamples)){
+    groupExp <- matrix(0, nrow = 1, ncol = 3)
+    colnames(groupExp) <- levels(as.factor(df2bT0$group))
+    for(g in 2:3){
+      betaVars <- paste0("beta[", g, ",", 1:p, "]")
+      codaSampBeta <- codaSamples[j, match(betaVars, colnames(codaSamples))]
+      codaSampBeta0 <- codaSamples[j, match(paste0("beta0[", g, "]"), colnames(codaSamples))]
+      groupExp[1, g] <- exp(codaSampBeta0 + X[i,] %*% t(codaSampBeta))
+    }
+    groupExp[,1] <- 1
+    groupProbs <- groupExp / apply(groupExp, 1, sum)
+    groupProbs <- data.frame(ptid = df2bT0$ptid[i], groupProbs)
+    groupProbsList[[j]] <- groupProbs
+  }
+  groupProbsDF <- do.call("rbind", groupProbsList)
+  groupProbsDF
 }
 proc.time()-ptm
 stopCluster(cl)
+
+# LOH
 
 save.image(file="working_20190223b.RData")
 
