@@ -391,7 +391,7 @@ model{
     beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r] ~ dnorm(0, 0.05)
+    beta0[r] ~ dnorm(0, tau2)
   }
   for(j in 1:p){
     delta[1,j] ~ dbern(prob)
@@ -402,7 +402,8 @@ model{
   }
   nVarsInc <- sum(delta[1,1:p])
   prob ~ dbeta(5, 100)
-  tau ~ dgamma(1, 1)
+  tau ~ dgamma(2, 2)
+  tau2 ~ dgamma(2, 2)
   SD <- sqrt(1 / tau)
 }"
 
@@ -424,7 +425,7 @@ parWrapper<-function(seedIter){
   codaSamples<-tryCatch({
       codaSamples <- rjags::coda.samples(model,
            variable.names = c("logdens", "prob", "nVarsInc", "delta", "tau", "SD", "beta0", "beta"),
-           n.iter = 25000, thin = 10)
+           n.iter = 100000, thin = 10)
     },error=function(e){
       codaSamples <- e
       return(codaSamples)
@@ -434,7 +435,7 @@ parWrapper<-function(seedIter){
 }
 
 # Create the cluster and export needed variables/data:
-nChains <- 16
+nChains <- 8
 cl <- parallel::makeCluster(8)
 parallel::clusterExport(cl, list("y", "X", "p", "n", "nGrps", "rJAGSModel3"))
 
@@ -552,14 +553,14 @@ set.seed(3)
 chainSamp <- sample(1:10, 5)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 1500) + ylim(-25, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 1500) + ylim(-7, 1) + xlab("Iteration") + ylab(expression(beta))
 p2 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = iter, y = value, color = chain)) + geom_line() + 
-  theme_bw() + xlim(500, 600) + ylim(-11, 1) + xlab("Iteration") + ylab(expression(beta))
+  theme_bw() + xlim(500, 600) + ylim(-5, 1) + xlab("Iteration") + ylab(expression(beta))
 p3 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI" & chain %in% chainSamp),
            aes(x = value, fill = chain, y = ..density..)) + 
   geom_histogram(binwidth = .35, alpha = 0.55, position = "identity", color = rgb(0, 0, 0, .4)) + xlab(expression(beta)) +
-  ylab("Density") + xlim(-15, 3) + theme_bw()
+  ylab("Density") + xlim(-8, 3) + theme_bw()
 
 # png(file = "Plots/cortisolBetaChain.png", height = 6, width = 9, res = 300, units = "in")
 lmat <- rbind(c(1, 1, 1, 1), c(2, 2, 3, 3))
@@ -569,19 +570,19 @@ gridExtra::grid.arrange(p1, p2, p3, layout_matrix = lmat)
 p1 <- ggplot(chainDF %>% filter(metabID == "m21" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
    theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m21"]) + ylim(0, 1) +
-  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+  xlim(-7, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 p2 <- ggplot(chainDF %>% filter(metabID == "m16" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m16"]) + ylim(0, 1.5) +
-  xlim(-15, 2.5) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m16"]) + ylim(0, 3.25) +
+  xlim(-7, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 p3 <- ggplot(chainDF %>% filter(metabID == "m32" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m32"]) + ylim(0, 2.5) +
-  xlim(-7, 7) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m32"]) + ylim(0, 4.25) +
+  xlim(-4, 4) + theme(plot.title = element_text(hjust = 0.5))
 p4 <- ggplot(chainDF %>% filter(metabID == "m54" & paramType == "beta" & group == "Non-Thrombotic MI"),
            aes(x = value, y = ..density..)) + geom_histogram(bins = 35, color = "black", fill = "grey60") + 
-  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m54"]) + ylim(0, 3.5) +
-  xlim(-5, 5) + theme(plot.title = element_text(hjust = 0.5))
+  theme_bw() + ggtitle(metabKey$Metabolite[metabKey$metabID == "m54"]) + ylim(0, 7) +
+  xlim(-2.5, 2.5) + theme(plot.title = element_text(hjust = 0.5))
 
 # png(file = "Plots/betaHistograms.png", height = 7, width = 8, res = 300, units = "in")
 gridExtra::grid.arrange(p1, p2, p3, p4, nrow = 2, ncol = 2)
@@ -623,60 +624,118 @@ rJAGSModel2 <- "
 model{
   for(i in 1:n){
     for(r in 1:nGrps){
-      pi[r,i]<-exp(beta0[r]+sum(beta[r,1:p]*X[i,1:p]))
+      pi[r,i] <- exp(beta0[r] + sum(beta[r,1:p] * X[i,1:p]))
     }
     # Likelihood:
-    y[i]~dcat(pi[1:nGrps,i])
-    logdensi[i]<-logdensity.cat(y[i],pi[1:nGrps,i])
+    y[i] ~ dcat(pi[1:nGrps,i])
+    logdensi[i] <- logdensity.cat(y[i], pi[1:nGrps,i])
   }
-  logdens<-sum(logdensi)
+  logdens <- sum(logdensi)
   
   # Priors:
-  beta0[1]<-0
+  beta0[1] <- 0
   for(j in 1:p){
-    beta[1,j]<-0
+    beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r]~dnorm(0,0.01)
+    beta0[r] ~ dnorm(0, tau2)
   }
   for(j in 1:p){
     for(r in 2:nGrps){
-      beta[r,j] ~ dnorm(0,tau)
+      beta[r,j] ~ dnorm(0, tau)
     }
   }
-  tau~dgamma(2,1)
-  SD<-sqrt(1/tau)
+  tau ~ dgamma(2,2)
+  tau2 ~ dgamma(2,2)
+  SD <- sqrt(1 / tau)
 }"
 
-tropT0<-oxPLDF %>% select(ptid,tropT0) %>% mutate(logTrop=log(tropT0+.0001)) %>% select(-tropT0)
-df2bT0<-df2bT0 %>% left_join(tropT0)
-X<-scale(df2bT0[,names(df2bT0) %in% c(metabInclude,"logTrop")])
+tropT0 <- oxPLDF %>% select(ptid, tropT0) %>% mutate(logTrop = log(tropT0 + .0001)) %>% select(-tropT0)
+df2bT0 <- df2bT0 %>% left_join(tropT0)
+X <- scale(df2bT0[,names(df2bT0) %in% c(metabInclude, "logTrop")])
 # X<-scale(df2bT0[,names(df2bT0) %in% metabInclude])
-p<-dim(X)[2]
-cat("p is ",p,"\n")
+p <- dim(X)[2]
+
+# Model priors:
+rJAGSModel2Priors <- "
+model{
+  # Priors:
+  beta0[1] <- 0
+  for(j in 1:p){
+    beta[1,j] <- 0
+  }
+  for(r in 2:nGrps){
+    beta0[r] ~ dnorm(0, tau2)
+  }
+  for(j in 1:p){
+    for(r in 2:nGrps){
+      beta[r,j] ~ dnorm(0, tau)
+    }
+  }
+  tau ~ dgamma(2, 2)
+  tau2 ~ dgamma(2, 2)
+  SD <- sqrt(1 / tau)
+}"
+priorModel<-rjags::jags.model(file = textConnection(rJAGSModel2Priors),
+                         data = list(p = p, nGrps = nGrps), n.chains = 6, n.adapt = 10000)
+codaSamplesPriorModel <- rjags::coda.samples(priorModel,
+              variable.names = c("tau", "SD", "beta0", "beta"), n.iter = 100000, thin = 10)
+codaSamplesPriorModel <- as.data.frame(do.call("rbind", codaSamplesPriorModel))
+codaSamplesPriorModel <- codaSamplesPriorModel[,!grepl("beta\\[1,", names(codaSamplesPriorModel))]
+codaSamplesPriorModel$`beta0[1]` <- NULL
+
+ggplot(codaSamplesPriorModel, aes(x = `beta[2,1]`)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = `beta0[2]`)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = tau)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+ggplot(codaSamplesPriorModel, aes(x = SD)) + geom_histogram(bins = 60, color = "black", fill = "grey60") +
+  theme_bw()
+
 
 # Sample for cross-validation
 library(doParallel)
-cl<-makeCluster(4)
+cl <- makeCluster(8)
 registerDoParallel(cl)
-ptm<-proc.time()
-codaSamples<-foreach(i=1:nrow(X),.inorder=FALSE) %dopar% {
-  X2<-X[-i,]
-  n<-dim(X2)[1]
+ptm <- proc.time()
+cvList <- foreach(i = 1:nrow(X), .inorder = FALSE) %dopar% {
+  X2 <- X[-i,]
+  n <- dim(X2)[1]
   set.seed(33333)
-  model<-rjags::jags.model(file=textConnection(rJAGSModel2),
-                           data=list(y=y,X=X2,p=p,n=n,nGrps=nGrps),n.chains=6,n.adapt=1000)
+  model <- rjags::jags.model(file = textConnection(rJAGSModel2),
+                           data = list(y = y, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 1, n.adapt = 1000)
   
-  codaSamples<-rjags::coda.samples(model,
-                                   variable.names=c("logdens","tau","SD","beta0","beta"),n.iter=10000,thin=10)
+  codaSamples <- rjags::coda.samples(model,
+                                   variable.names = c("logdens", "tau", "SD", "beta0", "beta"), 
+                                   n.iter = 1000, thin = 10)
   
   # Make into one MCMC chain:
-  codaSamples<-as.data.frame(do.call("rbind",codaSamples))
-  codaSamples$lo<-i
-  codaSamples
+  codaSamples <- as.data.frame(do.call("rbind", codaSamples))
+  
+  # Calculate group probabilities from LOO-CV posteriors
+  groupProbsList <- list()
+  for(j in 1:nrow(codaSamples)){
+    groupExp <- matrix(0, nrow = 1, ncol = 3)
+    colnames(groupExp) <- levels(as.factor(df2bT0$group))
+    for(g in 2:3){
+      betaVars <- paste0("beta[", g, ",", 1:p, "]")
+      codaSampBeta <- codaSamples[j, match(betaVars, colnames(codaSamples))]
+      codaSampBeta0 <- codaSamples[j, match(paste0("beta0[", g, "]"), colnames(codaSamples))]
+      groupExp[1, g] <- exp(codaSampBeta0 + X[i,] %*% t(codaSampBeta))
+    }
+    groupExp[,1] <- 1
+    groupProbs <- groupExp / apply(groupExp, 1, sum)
+    groupProbs <- data.frame(ptid = df2bT0$ptid[i], groupProbs)
+    groupProbsList[[j]] <- groupProbs
+  }
+  groupProbsDF <- do.call("rbind", groupProbsList)
+  groupProbsDF
 }
 proc.time()-ptm
 stopCluster(cl)
+
+# LOH
 
 save.image(file="working_20190223b.RData")
 
