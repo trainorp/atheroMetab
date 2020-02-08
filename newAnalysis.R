@@ -499,7 +499,7 @@ model{
 X <- scale(df2T0[,names(df2T0) %in% c(metabInclude)])
 p <- dim(X)[2]
 library(doParallel)
-cl <- makeCluster(4)
+cl <- makeCluster(16)
 registerDoParallel(cl)
 ptm <- proc.time()
 codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
@@ -519,7 +519,7 @@ codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
 }
 proc.time()-ptm
 stopCluster(cl)
-
+save.image('working_20200205c.RData')
 model<-rjags::jags.model(file = textConnection(rJAGSModel2),
                          data = list(y = y, X = X, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
 
