@@ -84,6 +84,23 @@ ggplot(qcPlotDF,aes(x = samp,y = log(Concentration), group = Metabolite, color =
   geom_point() + geom_line() + theme_bw() + xlab("Sample")
 #dev.off()
 
+############ PCA ############
+pcaDF <- as.data.frame(df2b)
+rownames(pcaDF) <- paste0(gsub(" ", "", pcaDF$group), "_", pcaDF$timept, "_", pcaDF$ptid)
+pcaDF <- pcaDF[,sapply(names(pcaDF), function(x) grepl("m\\d", x))]
+pca1 <- prcomp(pcaDF, center = TRUE, scale. = TRUE)
+
+pcaDF2 <- as.data.frame(pca1$x)
+pcaDF2$samp <- rownames(pcaDF2)
+pcaDF2$group <- str_split(pcaDF2$samp, "_", simplify = TRUE)[,1]
+pcaDF2$timepoint <- str_split(pcaDF2$samp, "_", simplify = TRUE)[,2]
+pcaDF2$groupTime <- paste0(pcaDF2$group, pcaDF2$timepoint)
+pcaDF2$groupTime <- factor(pcaDF2$groupTime, levels = c("ThromboticMIT0", "Non-ThromboticMIT0", "sCADT0",
+                                                        "ThromboticMITFU", "Non-ThromboticMITFU", "sCADTFU"))
+ggplot(pcaDF2 %>% filter(group != "Indeterminate"), aes(x = PC1, y = PC2, color = groupTime)) + 
+  geom_point() + theme_bw() + scale_color_manual(values = c("red", "blue", "black", 
+    rgb(255, 229, 229, 255, maxColorValue = 255), rgb(229, 229, 255, 255, maxColorValue = 255), "grey80"))
+
 ############ Summary statistics ############
 summaryFun2 <- function(metab){
   tab1 <- df1b %>% select(group, timept, x = metab) %>% 
@@ -273,8 +290,7 @@ sampSum <- sampSum %>% select(metabID, Metabolite, Name = `Full Name, synonym`, 
 # write.csv(sampSum, file = "Results/changeModelSum.csv", row.names = FALSE)
 
 # Temp save:
-save.image("working_20190113.RData")
-#LOH
+save.image("working_20190818.RData")
 
 ############ T0 Bayesian model selection ############
 load("working_20190113.RData")
