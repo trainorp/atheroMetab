@@ -504,10 +504,11 @@ registerDoParallel(cl)
 ptm <- proc.time()
 codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
   X2 <- X[-i,]
+  y2 <- y[-i,]
   n <- dim(X2)[1]
   set.seed(33333)
   model <- rjags::jags.model(file = textConnection(rJAGSModel2),
-            data = list(y = y, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
+            data = list(y = y2, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
   
   codaSamples <- rjags::coda.samples(model,
                variable.names = c("logdens", "tau", "SD", "beta0", "beta"), n.iter = 10000, thin = 10)
@@ -520,6 +521,31 @@ codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
 proc.time()-ptm
 stopCluster(cl)
 save.image('working_20200205c.RData')
+
+looPreds <- data.frame()
+for(j in 1:length(codaSamples)){
+  loo <- codaSamples[[j]]
+  looBetaX <- data.frame(iter = 1:nrow(loo), T2 = NA, sCAD = NA)
+  for(i in 1:nrow(loo)){
+    looBeta <- loo[, grepl("beta\\[", colnames(loo))]
+    looBeta2 <- looBeta[i,] * X[j,]
+    T2 <- exp(loo[, "beta0[2]"][i] + sum(looBeta2[, grepl("beta\\[2", colnames(looBeta2))]))
+    sCAD <- exp(loo[, "beta0[3]"][i] + sum(looBeta2[, grepl("beta\\[3", colnames(looBeta2))]))
+    denom <- 1 + T2 + sCAD
+    looPi$T2[i] <- T2 / denom
+    looPi$sCAD[i] <- sCAD / denom
+  }
+  looPi$T1 <- 1 - (looPi$T2 + looPi$sCAD)
+  looProp <- as.numeric(prop.table(table(apply(looPi[, -1], 1, which.max))))
+  names(looProp) <- levels(df2T0$group)
+  looPred <- as.data.frame(t(looProp))
+  looPred$ptid <- rownames(X)[j]
+  looPreds <- rbind(looPreds, looPred)
+  print(j)
+}
+df2T0$ptid <- rownames(df2T0)
+looPreds <- looPreds %>% left_join(df2T0 %>% select(ptid, group))
+
 model<-rjags::jags.model(file = textConnection(rJAGSModel2),
                          data = list(y = y, X = X, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
 
