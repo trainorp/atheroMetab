@@ -465,7 +465,7 @@ save.image("working_20200205b.RData")
 load("working_20200205b.RData")
 
 ############ T0 model ############
-metabInclude <- cpsTemp$metabID[1:15]
+metabInclude <- cpsTemp$metabID[1:20]
 rJAGSModel2 <- "
 model{
   for(i in 1:n){
@@ -537,11 +537,12 @@ codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
   y2 <- y[-i]
   n <- dim(X2)[1]
   set.seed(33333)
+  runjags::load.runjagsmodule()
   model <- rjags::jags.model(file = textConnection(rJAGSModel2b),
             data = list(y = y2, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
   
   codaSamples <- rjags::coda.samples(model,
-               variable.names = c("logdens", "tau", "SD", "beta0", "beta"), n.iter = 10000, thin = 10)
+               variable.names = c("logdens", "tau", "beta0", "beta"), n.iter = 10000, thin = 10)
   
   # Make into one MCMC chain:
   codaSamples<-as.data.frame(do.call("rbind",codaSamples))
@@ -550,9 +551,9 @@ codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
 }
 proc.time()-ptm
 stopCluster(cl)
-save.image('working_20200205c.RData')
+save.image('working_20200205d.RData')
 
-load('working_20200205c.RData')
+load('working_20200205d.RData')
 looPreds <- data.frame()
 for(j in 1:length(codaSamples)){
   loo <- codaSamples[[j]]
