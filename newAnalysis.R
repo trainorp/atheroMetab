@@ -495,6 +495,36 @@ model{
   SD <- sqrt(1 / tau)
 }"
 
+runjags::load.runjagsmodule()
+rJAGSModel2b <- "
+model{
+  for(i in 1:n){
+    for(r in 1:nGrps){
+      pi[r,i] <- exp(beta0[r] + sum(beta[r, 1:p] * X[i, 1:p]))
+    }
+    # Likelihood:
+    y[i] ~ dcat(pi[1:nGrps, i])
+    logdensi[i] <- logdensity.cat(y[i], pi[1:nGrps, i])
+  }
+  logdens <- sum(logdensi)
+  
+  # Priors:
+  beta0[1] <- 0
+  for(j in 1:p){
+    beta[1,j] <- 0
+  }
+  for(r in 2:nGrps){
+    beta0[r] ~ dnorm(0, 0.01)
+  }
+  for(j in 1:p){
+    for(r in 2:nGrps){
+      lambda[r,j] ~ dhalfcauchy(1)
+      tau[r,j] ~ dhalfcauchy(lambda[r,j])
+      beta[r,j] ~ dnorm(0, 1 / (tau[r,j]^2))
+    }
+  }
+}"
+
 # Sample for cross-validation
 X <- scale(df2T0[,names(df2T0) %in% c(metabInclude)])
 p <- dim(X)[2]
@@ -504,10 +534,10 @@ registerDoParallel(cl)
 ptm <- proc.time()
 codaSamples <- foreach(i=1:nrow(X), .inorder=FALSE) %dopar% {
   X2 <- X[-i,]
-  y2 <- y[-i,]
+  y2 <- y[-i]
   n <- dim(X2)[1]
   set.seed(33333)
-  model <- rjags::jags.model(file = textConnection(rJAGSModel2),
+  model <- rjags::jags.model(file = textConnection(rJAGSModel2b),
             data = list(y = y2, X = X2, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
   
   codaSamples <- rjags::coda.samples(model,
