@@ -522,31 +522,37 @@ proc.time()-ptm
 stopCluster(cl)
 save.image('working_20200205c.RData')
 
+load('working_20200205c.RData')
 looPreds <- data.frame()
 for(j in 1:length(codaSamples)){
   loo <- codaSamples[[j]]
-  looBetaX <- data.frame(iter = 1:nrow(loo), T2 = NA, sCAD = NA)
+  looPi<- data.frame(iter = 1:nrow(loo), T2 = NA, sCAD = NA)
   for(i in 1:nrow(loo)){
-    looBeta <- loo[, grepl("beta\\[", colnames(loo))]
-    looBeta2 <- looBeta[i,] * X[j,]
-    T2 <- exp(loo[, "beta0[2]"][i] + sum(looBeta2[, grepl("beta\\[2", colnames(looBeta2))]))
-    sCAD <- exp(loo[, "beta0[3]"][i] + sum(looBeta2[, grepl("beta\\[3", colnames(looBeta2))]))
+    looBeta <- as.matrix(loo[i, grepl("beta\\[", colnames(loo))])
+    looBeta <- matrix(c(looBeta), ncol = 3, byrow = TRUE)
+    looBeta2 <- t(looBeta) %*% t(t(X[j,]))
+    T2 <- exp(looBeta2[2])
+    sCAD <- exp(looBeta2[3])
     denom <- 1 + T2 + sCAD
     looPi$T2[i] <- T2 / denom
     looPi$sCAD[i] <- sCAD / denom
   }
   looPi$T1 <- 1 - (looPi$T2 + looPi$sCAD)
-  looProp <- as.numeric(prop.table(table(apply(looPi[, -1], 1, which.max))))
-  names(looProp) <- levels(df2T0$group)
+  looProp <- prop.table(table(apply(looPi[, -1], 1, which.max)))
+  nam1 <- c("Non-Thrombotic MI", "sCAD", "Thrombotic MI")[match(names(looProp), c("1", "2", "3"))]
+  looProp <- as.numeric(looProp)
+  names(looProp) <- nam1
   looPred <- as.data.frame(t(looProp))
   looPred$ptid <- rownames(X)[j]
-  looPreds <- rbind(looPreds, looPred)
+  looPreds <- bind_rows(looPreds, looPred)
   print(j)
 }
 df2T0$ptid <- rownames(df2T0)
 looPreds <- looPreds %>% left_join(df2T0 %>% select(ptid, group))
+looPreds$pred <- colnames(looPreds)[apply(looPreds[,1:3], 1, which.max)]
+xtabs(~group + pred, data = looPreds)
 
-model<-rjags::jags.model(file = textConnection(rJAGSModel2),
+model <- rjags::jags.model(file = textConnection(rJAGSModel2),
                          data = list(y = y, X = X, p = p, n = n, nGrps = nGrps), n.chains = 6, n.adapt = 1000)
 
 codaSamples <- rjags::coda.samples(model,
