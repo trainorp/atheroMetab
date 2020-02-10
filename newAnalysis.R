@@ -464,7 +464,48 @@ heatmap(deltaMatrix2)
 save.image("working_20200205b.RData")
 load("working_20200205b.RData")
 
-############ T0 model ############
+############ T0 RF benchmark model ############
+metabInclude <- cpsTemp$metabID[1:25]
+rfT0DF <- df2T0[, names(df2T0) %in% metabInclude | names(df2T0) == "group"]
+
+looRFPreds <- data.frame(ptid = rownames(rfT0DF), group = rfT0DF$group, pred = NA)
+for(i in 1:nrow(looRFPreds)){
+  looRF <- randomForest::randomForest(group ~ ., data = rfT0DF2[-i,], ntree = 5000)
+  looRFPreds$pred[i] <- as.character(predict(looRF, newdata =  rfT0DF2[i,]))
+}
+xtabs(~group + pred, data = looRFPreds)
+
+############ T0 SVM benchmark model ############
+looSVMPreds <- data.frame(ptid = rownames(rfT0DF), group = rfT0DF$group, pred = NA)
+for(i in 1:nrow(looSVMPreds)){
+  looSVM <- e1071::svm(group ~ ., data = rfT0DF[-i,], kernal = "radial", 
+                       gamma = 0.005, cost = 10, class.weights = 1/table(rfT0DF$group[-i]))
+  looSVMPreds$pred[i] <- as.character(predict(looSVM, newdata =  rfT0DF[i,]))
+}
+xtabs(~group + pred, data = looSVMPreds)
+
+looSVMPreds <- data.frame(ptid = rownames(rfT0DF), group = rfT0DF$group, pred = NA)
+for(i in 1:nrow(looSVMPreds)){
+  looSVM <- e1071::svm(group ~ ., data = rfT0DF[-i,], kernal = "polynomial", degree = 3,
+                       gamma = 0.004, cost = 10)
+  looSVMPreds$pred[i] <- as.character(predict(looSVM, newdata =  rfT0DF[i,]))
+}
+xtabs(~group + pred, data = looSVMPreds)
+
+tropT0 <- oxPLDF %>% select(ptid,tropT0) %>% mutate(logTrop=log(tropT0+.0001)) %>% select(-tropT0)
+rfT0DF$ptid <- rownames(rfT0DF)
+rfT0DF2 <- rfT0DF %>% left_join(tropT0)
+rfT0DF$ptid <- rfT0DF2$ptid <- NULL
+
+looSVMPreds <- data.frame(ptid = rownames(rfT0DF2), group = rfT0DF$group, pred = NA)
+for(i in 1:nrow(looSVMPreds)){
+  looSVM <- e1071::svm(group ~ ., data = rfT0DF2[-i,], kernal = "polynomial", degree = 3,
+                       gamma = 0.004, cost = 10)
+  looSVMPreds$pred[i] <- as.character(predict(looSVM, newdata =  rfT0DF2[i,]))
+}
+xtabs(~group + pred, data = looSVMPreds)
+
+############ T0 Bayesian model ############
 metabInclude <- cpsTemp$metabID[1:20]
 rJAGSModel2 <- "
 model{
