@@ -461,9 +461,6 @@ diag(deltaMatrix2) <- NA
 image(deltaMatrix2)
 heatmap(deltaMatrix2)
 
-save.image("working_20200205b.RData")
-load("working_20200205b.RData")
-
 ############ T0 RF benchmark model ############
 metabInclude <- cpsTemp$metabID[1:25]
 rfT0DF <- df2T0[, names(df2T0) %in% metabInclude | names(df2T0) == "group"]
@@ -504,9 +501,12 @@ for(i in 1:nrow(looSVMPreds)){
   looSVMPreds$pred[i] <- as.character(predict(looSVM, newdata =  rfT0DF2[i,]))
 }
 xtabs(~group + pred, data = looSVMPreds)
+save.image("working_20200205b.RData")
 
 ############ T0 Bayesian model ############
-metabInclude <- cpsTemp$metabID[1:20]
+load("working_20200205b.RData")
+
+metabInclude <- cpsTemp$metabID[1:25]
 rJAGSModel2 <- "
 model{
   for(i in 1:n){
@@ -555,7 +555,7 @@ model{
     beta[1,j] <- 0
   }
   for(r in 2:nGrps){
-    beta0[r] ~ dnorm(0, 0.01)
+    beta0[r] ~ dnorm(0, 0.05)
   }
   for(j in 1:p){
     for(r in 2:nGrps){
@@ -568,6 +568,7 @@ model{
 
 # Sample for cross-validation
 X <- scale(df2T0[,names(df2T0) %in% c(metabInclude)])
+X[,"trop"] <- rF
 p <- dim(X)[2]
 library(doParallel)
 cl <- makeCluster(16)
